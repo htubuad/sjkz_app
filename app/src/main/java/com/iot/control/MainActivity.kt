@@ -95,6 +95,27 @@ class MainActivity : AppCompatActivity() {
             binding.tvLog.text = "暂无日志"
             Toast.makeText(this, "日志已清除", Toast.LENGTH_SHORT).show()
         }
+
+        // 自定义消息下发
+        val customTopic = "/k1jrhJxxEiu/SJD_app/user/update"
+        binding.btnSendCustom.setOnClickListener {
+            val payload = binding.etCustomPayload.text.toString().trim()
+            if (payload.isEmpty()) {
+                Toast.makeText(this, "请输入消息内容", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (!iotManager.isConnected()) {
+                Toast.makeText(this, "未连接，无法发送", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            iotManager.publishCustom(customTopic, payload, qos = 0, retained = false)
+            appendLog("发送 → $customTopic : $payload")
+        }
+        binding.btnFillTemplate.setOnClickListener {
+            binding.etCustomPayload.setText("{\"from\":\"phone\",\"num\":999}")
+            binding.etCustomPayload.setSelection(binding.etCustomPayload.text.length)
+            Toast.makeText(this, "已填入默认模板", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun setupManagerListeners() {
@@ -107,10 +128,114 @@ class MainActivity : AppCompatActivity() {
 
         iotManager.messageListener = { topic, payload ->
             runOnUiThread {
-                appendLog("收到: $payload")
-                parseAndUpdateStatus(payload)
+                // 自定义 Topic 消息处理
+                if (topic.contains("/user/update")) {
+                    handleCustomMessage(payload)
+                } else {
+                    appendLog("收到: $payload")
+                    parseAndUpdateStatus(payload)
+                }
             }
         }
+    }
+
+    /**
+     * 处理自定义 Topic 消息，例如：
+     *  - {"from":"phone","type":"switch","index":1,"value":1}
+     *  - {"from":"phone","type":"switch_all","value":1}
+     *  - {"from":"phone","type":"temperature","value":25.0}
+     *  - {"from":"phone","num":999}
+     */
+    private fun handleCustomMessage(payload: String) {
+        appendLog("收到指令: $payload")
+        binding.tvLatestRaw.text = payload
+        try {
+            val json = JSONObject(payload)
+            val from = json.optString("from", "未知")
+            val type = json.optString("type", "")
+            val index = json.opt("index")
+            val value = json.opt("value")
+            val num = json.opt("num")
+
+            // 在参数区域显示
+            binding.layoutParams.removeAllViews()
+            binding.tvNoData.visibility = android.view.View.GONE
+            addParamRow("from", from)
+
+            when {
+                type == "switch" -> {
+                    val idx = index?.toString() ?: "--"
+                    val on = value?.toString() == "1"
+                    appendLog("开关$idx ${if (on) "开启" else "关闭"} (value=$value)")
+                    addParamRow("type", "switch 单控")
+                    addParamRow("index", idx)
+                    addParamRow("value", value?.toString() ?: "--")
+                }
+                type == "switch_all" -> {
+                    val on = value?.toString() == "1"
+                    appendLog("全部开关 ${if (on) "开启" else "关闭"} (value=$value)")
+                    addParamRow("type", "switch_all 全控")
+                    addParamRow("value", value?.toString() ?: "--")
+                }
+                type == "temperature" -> {
+                    appendLog("温度设置: $value°C")
+                    addParamRow("type", "temperature 温度")
+                    addParamRow("value", value?.toString() ?: "--")
+                }
+                type == "power" -> {
+                    val on = value?.toString() == "1"
+                    appendLog("电源开关 ${if (on) "开启" else "关闭"} (value=$value)")
+                    addParamRow("type", "power 电源")
+                    addParamRow("value", value?.toString() ?: "--")
+                }
+                type == "light" -> {
+                    val on = value?.toString() == "1"
+                    appendLog("灯开关 ${if (on) "开启" else "关闭"} (value=$value)")
+                    addParamRow("type", "light 灯")
+                    addParamRow("value", value?.toString() ?: "--")
+                }
+                else -> {
+                    // 兼容旧格式 {"from":"phone","num":999}
+                    appendLog("来源: $from, 数值: $num, type=$type")
+                    if (type.isNotEmpty()) addParamRow("type", type)
+                    if (num != null) addParamRow("num", num.toString())
+                    if (value != null) addParamRow("value", value.toString())
+                    if (index != null) addParamRow("index", index.toString())
+                }
+            }
+        } catch (e: Exception) {
+            appendLog("解析失败: ${e.message}")
+        }
+    }
+
+    private fun addParamRow(key: String, value: String) {
+        val row = LinearLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = dp(8) }
+            orientation = LinearLayout.HORIZONTAL
+        }
+        val keyView = TextView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            text = key
+            textSize = 15f
+            setTextColor(getColor(R.color.gray_600))
+        }
+        val valueView = TextView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            text = value
+            textSize = 15f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(getColor(R.color.gray_800))
+            gravity = Gravity.END
+        }
+        row.addView(keyView)
+        row.addView(valueView)
+        binding.layoutParams.addView(row)
     }
 
     private fun refreshStatus() {
@@ -178,8 +303,13 @@ class MainActivity : AppCompatActivity() {
             && !iotManager.isConnected()
         ) {
             setupManagerListeners()
-            iotManager.connect(config)
-            appendLog("应用启动，自动连接设备...")
+            // 用户上次主动断开过 → 不自动重连，提示需手动点击连接
+            if (iotManager.isManualDisconnected()) {
+                appendLog("上次已主动断开，需手动点击连接")
+            } else {
+                iotManager.connect(config)
+                appendLog("应用启动，自动连接设备...")
+            }
         }
     }
 

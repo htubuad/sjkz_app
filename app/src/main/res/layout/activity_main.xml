@@ -223,6 +223,90 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- 自定义消息下发卡片 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="📤 自定义消息下发"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/gray_800"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Topic: /k1jrhJxxEiu/SJD_app/user/update"
+                    android:textSize="12sp"
+                    android:textColor="@color/gray_400"
+                    android:fontFamily="monospace"
+                    android:layout_marginBottom="12dp" />
+
+                <EditText
+                    android:id="@+id/etCustomPayload"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minLines="3"
+                    android:maxLines="6"
+                    android:gravity="top|start"
+                    android:hint='{"from":"phone","num":999}'
+                    android:text='{"from":"phone","num":999}'
+                    android:textSize="14sp"
+                    android:fontFamily="monospace"
+                    android:inputType="textMultiLine|textNoSuggestions"
+                    android:background="@drawable/edit_bg"
+                    android:padding="12dp"
+                    android:layout_marginBottom="12dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnSendCustom"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_weight="1"
+                        android:text="发送"
+                        android:textSize="15sp"
+                        android:backgroundTint="@color/blue_600"
+                        android:textColor="@color/white" />
+
+                    <Button
+                        android:id="@+id/btnFillTemplate"
+                        android:layout_width="wrap_content"
+                        android:layout_height="48dp"
+                        android:layout_marginStart="8dp"
+                        android:text="填默认"
+                        android:textSize="13sp"
+                        android:backgroundTint="@color/gray_400"
+                        android:textColor="@color/white" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="提示：用 App 自身连接自发自收，用于验证订阅与消息处理逻辑"
+                    android:textSize="11sp"
+                    android:textColor="@color/gray_400"
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
         <!-- 设备最新状态卡片 -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
