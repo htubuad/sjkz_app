@@ -1,0 +1,46 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 电源符号：白色圆环（顶部断开） -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="9"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M54,34 A22,22 0 1,1 41.8,40" />
+    <!-- 顶部竖线 -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="9"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M54,30 L54,46" />
+    <!-- 五彩渐变外环（加粗 + 更多渐变色） -->
+    <path
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M54,26 A28,28 0 1,1 34.1,35.2">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="sweep"
+                android:centerX="54"
+                android:centerY="54">
+                <item android:offset="0.0" android:color="#FFEF4444" />
+                <item android:offset="0.12" android:color="#FFF97316" />
+                <item android:offset="0.25" android:color="#FFEAB308" />
+                <item android:offset="0.37" android:color="#FF84CC16" />
+                <item android:offset="0.5" android:color="#FF22C55E" />
+                <item android:offset="0.62" android:color="#FF06B6D4" />
+                <item android:offset="0.75" android:color="#FF3B82F6" />
+                <item android:offset="0.87" android:color="#FF8B5CF6" />
+                <item android:offset="1.0" android:color="#FFEC4899" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
+
+
