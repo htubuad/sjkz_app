@@ -30,18 +30,25 @@ class AliyunIotManager(private val context: Context) {
     @Volatile
     private var mqttClient: MqttAsyncClient? = null
 
+    // 去重：记录上一条收到的消息，避免重复投递导致日志/状态重复显示
+    @Volatile
+    private var lastTopic: String? = null
+    @Volatile
+    private var lastPayload: String? = null
+
     /**
-     * 标记用户是否主动断开过连接
+     * 标记用户是否主动断开过连接（持久化到 SharedPreferences，App 重启后仍有效）
      * - true: 主动断开过，应用启动时不自动重连，必须用户再次点击连接
      * - false: 未主动断开过（如意外掉线），保持自动重连
      */
-    @Volatile
-    private var userManualDisconnect: Boolean = false
+    private val prefs by lazy {
+        context.getSharedPreferences("iot_config", android.content.Context.MODE_PRIVATE)
+    }
 
-    fun isManualDisconnected(): Boolean = userManualDisconnect
+    fun isManualDisconnected(): Boolean = prefs.getBoolean("user_manual_disconnect", false)
 
-    fun setManualDisconnected(value: Boolean) {
-        userManualDisconnect = value
+    private fun setManualDisconnected(value: Boolean) {
+        prefs.edit().putBoolean("user_manual_disconnect", value).apply()
     }
 
     data class DeviceConfig(
@@ -68,7 +75,7 @@ class AliyunIotManager(private val context: Context) {
         }
 
         // 用户主动点击连接 → 清除"主动断开"标记
-        userManualDisconnect = false
+        setManualDisconnected(false)
 
         statusListener?.invoke(Status.CONNECTING, "正在连接阿里云 IoT…")
 
@@ -131,12 +138,15 @@ class AliyunIotManager(private val context: Context) {
                     }
                 }
                 // 订阅自定义 Topic（用于 MQTTX 等外部客户端下发指令）
-                val customTopic = "/$pk/$dn/user/update"
-                try {
-                    client.subscribe(customTopic, 0)
-                    Log.i(TAG, "已订阅自定义Topic: $customTopic")
-                } catch (e: Exception) {
-                    Log.e(TAG, "订阅自定义Topic失败: ${e.message}")
+                val customTopicUpdate = "/$pk/$dn/user/update"
+                val customTopicGet = "/$pk/$dn/user/get"
+                listOf(customTopicUpdate, customTopicGet).forEach { customTopic ->
+                    try {
+                        client.subscribe(customTopic, 0)
+                        Log.i(TAG, "已订阅自定义Topic: $customTopic")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "订阅自定义Topic失败 $customTopic: ${e.message}")
+                    }
                 }
             }
 
@@ -147,12 +157,20 @@ class AliyunIotManager(private val context: Context) {
 
             override fun messageArrived(topic: String?, message: MqttMessage?) {
                 val payload = message?.toString() ?: ""
+                val topicStr = topic ?: ""
                 Log.d(TAG, "收到消息 topic=$topic payload=$payload")
+                // 去重：与上一条完全相同（同 topic + 同 payload）则忽略，避免重复投递
+                if (topicStr == lastTopic && payload == lastPayload) {
+                    Log.d(TAG, "重复消息已忽略: $payload")
+                    return
+                }
+                lastTopic = topicStr
+                lastPayload = payload
                 // 收到平台下发的 property/set 指令时，自动回复 set_reply
                 if (topic?.endsWith("thing/service/property/set") == true) {
                     replyToPropertySet(config, payload)
                 }
-                messageListener?.invoke(topic ?: "", payload)
+                messageListener?.invoke(topicStr, payload)
             }
 
             override fun deliveryComplete(token: IMqttDeliveryToken?) {}
@@ -188,7 +206,7 @@ class AliyunIotManager(private val context: Context) {
      */
     fun disconnect(manual: Boolean = true) {
         if (manual) {
-            userManualDisconnect = true
+            setManualDisconnected(true)
         }
         IoTConnectionService.stop(context)
         try {

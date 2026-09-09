@@ -1,5 +1,8 @@
 package com.iot.control
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.res.ColorStateList
@@ -97,7 +100,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         // 自定义消息下发
-        val customTopic = "/k1jrhJxxEiu/SJD_app/user/update"
         binding.btnSendCustom.setOnClickListener {
             val payload = binding.etCustomPayload.text.toString().trim()
             if (payload.isEmpty()) {
@@ -108,13 +110,42 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "未连接，无法发送", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-            iotManager.publishCustom(customTopic, payload, qos = 0, retained = false)
-            appendLog("发送 → $customTopic : $payload")
+            val topic = getCurrentCustomTopic()
+            iotManager.publishCustom(topic, payload, qos = 0, retained = false)
+            appendLog("发送 → $topic : $payload")
         }
         binding.btnFillTemplate.setOnClickListener {
             binding.etCustomPayload.setText("{\"from\":\"phone\",\"num\":999}")
             binding.etCustomPayload.setSelection(binding.etCustomPayload.text.length)
             Toast.makeText(this, "已填入默认模板", Toast.LENGTH_SHORT).show()
+        }
+
+        // 长按原始数据复制到剪贴板
+        binding.tvLatestRaw.setOnLongClickListener {
+            val text = binding.tvLatestRaw.text?.toString()?.trim() ?: ""
+            if (text.isNotEmpty()) {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("原始数据", text)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(this, "原始数据已复制到剪贴板", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "暂无数据可复制", Toast.LENGTH_SHORT).show()
+            }
+            true
+        }
+
+        // 长按连接日志复制到剪贴板
+        binding.tvLog.setOnLongClickListener {
+            val text = binding.tvLog.text?.toString() ?: ""
+            if (text.isNotBlank() && text != "暂无日志") {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("连接日志", text)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(this, "连接日志已复制到剪贴板", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "暂无日志可复制", Toast.LENGTH_SHORT).show()
+            }
+            true
         }
     }
 
@@ -128,8 +159,8 @@ class MainActivity : AppCompatActivity() {
 
         iotManager.messageListener = { topic, payload ->
             runOnUiThread {
-                // 自定义 Topic 消息处理
-                if (topic.contains("/user/update")) {
+                // 自定义 Topic 消息处理（/user/update 和 /user/get 都走此分支）
+                if (topic.contains("/user/update") || topic.contains("/user/get")) {
                     handleCustomMessage(payload)
                 } else {
                     appendLog("收到: $payload")
@@ -148,7 +179,7 @@ class MainActivity : AppCompatActivity() {
      */
     private fun handleCustomMessage(payload: String) {
         appendLog("收到指令: $payload")
-        binding.tvLatestRaw.text = payload
+        binding.tvLatestRaw.text = prettyJson(payload)
         try {
             val json = JSONObject(payload)
             val from = json.optString("from", "未知")
@@ -160,7 +191,10 @@ class MainActivity : AppCompatActivity() {
             // 在参数区域显示
             binding.layoutParams.removeAllViews()
             binding.tvNoData.visibility = android.view.View.GONE
-            addParamRow("from", from)
+            // from 字段存在时才显示（避免出现 "from — 未知"）
+            if (from != "未知") {
+                addParamRow("from", from)
+            }
 
             when {
                 type == "switch" -> {
@@ -178,9 +212,12 @@ class MainActivity : AppCompatActivity() {
                     addParamRow("value", value?.toString() ?: "--")
                 }
                 type == "temperature" -> {
-                    appendLog("温度设置: $value°C")
+                    // 温度值来自 from 字段（如 {"from":"25.0","type":"temperature"}）
+                    val temp = from.toDoubleOrNull()
+                    val tempStr = if (temp != null) formatTemp(temp.toFloat()) else from
+                    appendLog("温度: ${tempStr}°C")
                     addParamRow("type", "temperature 温度")
-                    addParamRow("value", value?.toString() ?: "--")
+                    addParamRow("温度", "$tempStr °C")
                 }
                 type == "power" -> {
                     val on = value?.toString() == "1"
@@ -195,12 +232,16 @@ class MainActivity : AppCompatActivity() {
                     addParamRow("value", value?.toString() ?: "--")
                 }
                 else -> {
-                    // 兼容旧格式 {"from":"phone","num":999}
-                    appendLog("来源: $from, 数值: $num, type=$type")
-                    if (type.isNotEmpty()) addParamRow("type", type)
-                    if (num != null) addParamRow("num", num.toString())
-                    if (value != null) addParamRow("value", value.toString())
-                    if (index != null) addParamRow("index", index.toString())
+                    // 通用：遍历 JSON 所有字段并显示，温度字段自动带 °C
+                    // （方法顶部已记录"收到指令"日志，此处不再重复）
+                    val keys = json.keys()
+                    while (keys.hasNext()) {
+                        val key = keys.next()
+                        // from 已在上面单独处理，这里跳过避免重复
+                        if (key == "from") continue
+                        val v = json.opt(key)
+                        addParamRow(formatKey(key), formatValue(v, key))
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -244,6 +285,18 @@ class MainActivity : AppCompatActivity() {
         } else {
             updateStatusUI(AliyunIotManager.Status.DISCONNECTED, "未连接")
         }
+        // 刷新自定义消息下发的 Topic 显示，使其与设置页填写的 DeviceName 一致
+        binding.tvCustomTopic.text = "Topic: ${getCurrentCustomTopic()}"
+    }
+
+    /**
+     * 根据设置页当前保存的 productKey + deviceName 计算自定义下发 Topic
+     */
+    private fun getCurrentCustomTopic(): String {
+        val cfg = getSavedConfig()
+        val pk = cfg.productKey.ifBlank { "k1jrhJxxEiu" }
+        val dn = cfg.deviceName.ifBlank { "SJD_app" }
+        return "/$pk/$dn/user/update"
     }
 
     private fun updateStatusUI(status: AliyunIotManager.Status, msg: String) {
@@ -253,7 +306,6 @@ class MainActivity : AppCompatActivity() {
                 binding.tvStatus.text = "未连接"
                 binding.tvStatus.setTextColor(getColor(R.color.gray_600))
                 setControlEnabled(false)
-                binding.tvDeviceStatus.text = "设备离线"
             }
             AliyunIotManager.Status.CONNECTING -> {
                 binding.statusDot.setBackgroundResource(R.drawable.circle_yellow)
@@ -266,7 +318,6 @@ class MainActivity : AppCompatActivity() {
                 binding.tvStatus.text = "已连接"
                 binding.tvStatus.setTextColor(getColor(R.color.green_700))
                 setControlEnabled(true)
-                binding.tvDeviceStatus.text = "设备在线"
             }
             AliyunIotManager.Status.ERROR -> {
                 binding.statusDot.setBackgroundResource(R.drawable.circle_red)
@@ -314,17 +365,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun parseAndUpdateStatus(payload: String) {
-        // 始终显示原始数据
-        binding.tvLatestRaw.text = payload
+        // 显示原始数据（JSON 美化后）
+        binding.tvLatestRaw.text = prettyJson(payload)
 
         try {
             val json = JSONObject(payload)
-            // 从 params / data / 根级别提取属性
-            val params = json.optJSONObject("params")
-                ?: json.optJSONObject("data")
-                ?: json
-
-            val keys = params.keys()
+            // 直接解析接收到的 JSON 顶层字段（与自定义下发格式一致）
+            val keys = json.keys()
             if (!keys.hasNext()) return
 
             // 清空之前的参数行
@@ -334,7 +381,7 @@ class MainActivity : AppCompatActivity() {
             // 动态生成每个参数的行
             while (keys.hasNext()) {
                 val key = keys.next()
-                val value = params.opt(key)
+                val value = json.opt(key)
                 val row = LinearLayout(this).apply {
                     layoutParams = LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
@@ -346,7 +393,7 @@ class MainActivity : AppCompatActivity() {
                     layoutParams = LinearLayout.LayoutParams(
                         0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
                     )
-                    text = key
+                    text = formatKey(key)
                     textSize = 15f
                     setTextColor(getColor(R.color.gray_600))
                 }
@@ -355,7 +402,7 @@ class MainActivity : AppCompatActivity() {
                         ViewGroup.LayoutParams.WRAP_CONTENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT
                     )
-                    text = formatValue(value)
+                    text = formatValue(value, key)
                     textSize = 15f
                     setTypeface(typeface, Typeface.BOLD)
                     setTextColor(getColor(R.color.gray_800))
@@ -370,6 +417,24 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * JSON 美化（缩进格式），失败时返回原字符串
+     */
+    private fun prettyJson(payload: String): String {
+        return try {
+            val obj = JSONObject(payload)
+            obj.toString(2)  // 缩进 2 空格
+        } catch (e: Exception) {
+            // 不是 JSON 对象，尝试数组
+            try {
+                val arr = org.json.JSONArray(payload)
+                arr.toString(2)
+            } catch (e2: Exception) {
+                payload
+            }
+        }
+    }
+
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
 
@@ -377,8 +442,8 @@ class MainActivity : AppCompatActivity() {
         return if (v == v.toInt().toFloat()) v.toInt().toString() else v.toString()
     }
 
-    private fun formatValue(v: Any?): String {
-        return when (v) {
+    private fun formatValue(v: Any?, key: String = ""): String {
+        val base = when (v) {
             is Boolean -> if (v) "开" else "关"
             is Number -> {
                 val d = v.toDouble()
@@ -386,6 +451,27 @@ class MainActivity : AppCompatActivity() {
             }
             else -> v?.toString() ?: "--"
         }
+        // 温度字段附加单位
+        return if (isTemperatureKey(key)) "$base °C" else base
+    }
+
+    /**
+     * 将字段名转为更友好的中文显示，未知字段保持原名
+     */
+    private fun formatKey(key: String): String {
+        return when (key) {
+            "temperature" -> "温度 (temperature)"
+            "humidity" -> "湿度 (humidity)"
+            "switch" -> "开关 (switch)"
+            "power" -> "电源 (power)"
+            "light" -> "灯 (light)"
+            else -> key
+        }
+    }
+
+    private fun isTemperatureKey(key: String): Boolean {
+        return key.equals("temperature", ignoreCase = true) ||
+                key.equals("temp", ignoreCase = true)
     }
 
     private fun appendLog(msg: String) {
@@ -394,6 +480,9 @@ class MainActivity : AppCompatActivity() {
         val current = binding.tvLog.text.toString()
         val line = "[$time] $msg"
         // 最新日志显示在最上面
-        binding.tvLog.text = if (current.isBlank() || current == "暂无日志") line else "$line\n$current"
+        val combined = if (current.isBlank() || current == "暂无日志") line else "$line\n$current"
+        // 只保留最近 20 条
+        val lines = combined.split("\n").take(20)
+        binding.tvLog.text = lines.joinToString("\n")
     }
 }

@@ -1,5 +1,8 @@
 package com.iot.control
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.widget.Toast
@@ -62,6 +65,20 @@ class SettingsActivity : AppCompatActivity() {
                 appendLog("收到 [$topic]: $payload")
             }
         }
+
+        // 长按连接日志复制到剪贴板
+        binding.tvLog.setOnLongClickListener {
+            val text = binding.tvLog.text?.toString() ?: ""
+            if (text.isNotBlank() && text != "暂无日志") {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                val clip = ClipData.newPlainText("连接日志", text)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(this, "连接日志已复制到剪贴板", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "暂无日志可复制", Toast.LENGTH_SHORT).show()
+            }
+            true
+        }
     }
 
     private fun refreshStatus() {
@@ -80,6 +97,7 @@ class SettingsActivity : AppCompatActivity() {
                 binding.tvStatus.setTextColor(getColor(R.color.gray_600))
                 binding.btnConnect.text = "连接设备"
                 binding.btnConnect.setBackgroundColor(getColor(R.color.green_600))
+                binding.btnConnect.isEnabled = true
             }
             AliyunIotManager.Status.CONNECTING -> {
                 binding.statusDot.setBackgroundResource(R.drawable.circle_yellow)
@@ -127,6 +145,29 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun loadSavedConfig() {
+        // 优先从 device_list_json 的第 0 条读取（兼容升级前已保存多设备的场景）
+        val listJson = prefs.getString("device_list_json", null)
+        if (listJson != null) {
+            try {
+                val arr = org.json.JSONArray(listJson)
+                if (arr.length() > 0) {
+                    val o = arr.getJSONObject(0)
+                    binding.etProductKey.setText(o.optString("productKey"))
+                    binding.etDeviceName.setText(o.optString("deviceName"))
+                    binding.etDeviceSecret.setText(o.optString("deviceSecret"))
+                    binding.etRegion.setText(o.optString("region").ifBlank { "cn-shanghai" })
+                    // 同步到旧字段，确保 autoConnect 能读到
+                    prefs.edit().apply {
+                        putString("productKey", o.optString("productKey"))
+                        putString("deviceName", o.optString("deviceName"))
+                        putString("deviceSecret", o.optString("deviceSecret"))
+                        putString("region", o.optString("region").ifBlank { "cn-shanghai" })
+                        apply()
+                    }
+                    return
+                }
+            } catch (_: Exception) { }
+        }
         binding.etProductKey.setText(prefs.getString("productKey", ""))
         binding.etDeviceName.setText(prefs.getString("deviceName", ""))
         binding.etDeviceSecret.setText(prefs.getString("deviceSecret", ""))
@@ -138,6 +179,8 @@ class SettingsActivity : AppCompatActivity() {
             .format(java.util.Date())
         val current = binding.tvLog.text.toString()
         val newLog = if (current == "暂无日志") "[$time] $msg" else "$current\n[$time] $msg"
-        binding.tvLog.text = newLog
+        // 只保留最近 20 条（追加模式，取最后 20 条）
+        val lines = newLog.split("\n").takeLast(20)
+        binding.tvLog.text = lines.joinToString("\n")
     }
 }

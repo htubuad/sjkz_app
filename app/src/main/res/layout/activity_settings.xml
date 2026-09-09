@@ -197,7 +197,9 @@
                     android:text="暂无日志"
                     android:textSize="13sp"
                     android:textColor="@color/gray_400"
-                    android:fontFamily="monospace" />
+                    android:fontFamily="monospace"
+                    android:textIsSelectable="true"
+                    android:longClickable="true" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
