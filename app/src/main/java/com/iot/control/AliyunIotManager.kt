@@ -279,7 +279,9 @@ class AliyunIotManager(private val context: Context) {
      * @param value 温度值（支持浮点数）
      */
     fun setTemperature(config: DeviceConfig, value: Float) {
-        publishCustomJson(config, "temperature", value, label = "温度 $value°C")
+        // 整数温度以整数形式下发（25.0 → 25），与开关等指令的 value 类型保持一致
+        val numValue: Number = if (value == value.toInt().toFloat()) value.toInt() else value
+        publishCustomJson(config, "temperature", numValue, label = "温度 $value°C")
     }
 
     /**
