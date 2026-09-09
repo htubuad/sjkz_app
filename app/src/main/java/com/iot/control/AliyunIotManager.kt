@@ -230,9 +230,10 @@ class AliyunIotManager(private val context: Context) {
 
     /**
      * 构造自定义 JSON 并发布到 /user/update Topic
-     * 格式: {"from":"phone","type":"<type>","index":<可选>,"value":<value>}
+     * 统一格式: {"from":"phone","type":"<type>","index":<index>,"value":<value>}
+     * 所有类型均携带 index 字段，无具体序号时默认为 0
      */
-    private fun publishCustomJson(config: DeviceConfig, type: String, value: Number, index: Int? = null, label: String) {
+    private fun publishCustomJson(config: DeviceConfig, type: String, value: Number, index: Int = 0, label: String) {
         val client = mqttClient ?: run {
             statusListener?.invoke(Status.ERROR, "未连接，无法下发")
             return
@@ -243,8 +244,7 @@ class AliyunIotManager(private val context: Context) {
         }
 
         val topic = customTopic(config)
-        val indexPart = index?.let { ",\"index\":$it" } ?: ""
-        val payload = """{"from":"phone","type":"$type"$indexPart,"value":$value}"""
+        val payload = """{"from":"phone","type":"$type","index":$index,"value":$value}"""
 
         Thread {
             try {
