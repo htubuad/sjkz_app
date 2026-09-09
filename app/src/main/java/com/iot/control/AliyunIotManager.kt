@@ -230,11 +230,11 @@ class AliyunIotManager(private val context: Context) {
 
     /**
      * 构造自定义 JSON 并发布到 /user/update Topic
-     * 统一格式: {"from":"phone","type":"<type>","index":<index>,"<valueKey>":<value>}
-     * 所有类型均携带 index 字段，无具体序号时默认为 0
-     * @param valueKey 数值字段名，默认为 "value"，温度指令使用 "temperature"
+     * 统一纯数字格式: {"from":1,"type":<typeCode>,"index":<index>,"value":<value>}
+     * type 编码: 1=switch 单路开关, 2=temperature 温度, 3=power 电源, 4=light 灯, 5=switch_all 全控
+     * from=1 表示手机端
      */
-    private fun publishCustomJson(config: DeviceConfig, type: String, value: Number, index: Int = 0, valueKey: String = "value", label: String) {
+    private fun publishCustomJson(config: DeviceConfig, typeCode: Int, value: Number, index: Int = 0, label: String) {
         val client = mqttClient ?: run {
             statusListener?.invoke(Status.ERROR, "未连接，无法下发")
             return
@@ -245,7 +245,7 @@ class AliyunIotManager(private val context: Context) {
         }
 
         val topic = customTopic(config)
-        val payload = """{"from":"phone","type":"$type","index":$index,"$valueKey":$value}"""
+        val payload = """{"from":1,"type":$typeCode,"index":$index,"value":$value}"""
 
         Thread {
             try {
@@ -260,50 +260,49 @@ class AliyunIotManager(private val context: Context) {
     }
 
     /**
-     * 电源开关（自定义格式下发）
+     * 电源开关（自定义格式下发）type=3
      */
     fun setPower(config: DeviceConfig, on: Boolean) {
         val value = if (on) 1 else 0
-        publishCustomJson(config, "power", value, label = "电源开关 ${if (on) "开" else "关"}")
+        publishCustomJson(config, 3, value, label = "电源开关 ${if (on) "开" else "关"}")
     }
 
     /**
-     * 灯开关（自定义格式下发）
+     * 灯开关（自定义格式下发）type=4
      */
     fun setLight(config: DeviceConfig, on: Boolean) {
         val value = if (on) 1 else 0
-        publishCustomJson(config, "light", value, label = "灯开关 ${if (on) "开" else "关"}")
+        publishCustomJson(config, 4, value, label = "灯开关 ${if (on) "开" else "关"}")
     }
 
     /**
-     * 温度设置（自定义格式下发）
+     * 温度设置（自定义格式下发）type=2
      * @param value 温度值（支持浮点数）
      */
     fun setTemperature(config: DeviceConfig, value: Float) {
-        // 整数温度以整数形式下发（25.0 → 25），与开关等指令的 value 类型保持一致
+        // 整数温度以整数形式下发（25.0 → 25）
         val numValue: Number = if (value == value.toInt().toFloat()) value.toInt() else value
-        // 温度指令使用 "temperature" 作为数值字段名
-        publishCustomJson(config, "temperature", numValue, valueKey = "temperature", label = "温度 $value°C")
+        publishCustomJson(config, 2, numValue, label = "温度 $value°C")
     }
 
     /**
-     * 设置第 N 路开关（自定义格式下发）
+     * 设置第 N 路开关（自定义格式下发）type=1
      * @param index 开关序号 1-10
      * @param on true=开启(1), false=关闭(0)
      */
     fun setSwitch(config: DeviceConfig, index: Int, on: Boolean) {
         if (index !in 1..10) return
         val value = if (on) 1 else 0
-        publishCustomJson(config, "switch", value, index = index, label = "开关$index ${if (on) "开" else "关"}")
+        publishCustomJson(config, 1, value, index = index, label = "开关$index ${if (on) "开" else "关"}")
     }
 
     /**
-     * 一键控制所有 10 路开关（自定义格式下发）
+     * 一键控制所有 10 路开关（自定义格式下发）type=5
      * @param on true=全部开启(1), false=全部关闭(0)
      */
     fun setAllSwitches(config: DeviceConfig, on: Boolean) {
         val value = if (on) 1 else 0
-        publishCustomJson(config, "switch_all", value, label = "一键${if (on) "开启" else "关闭"}全部开关")
+        publishCustomJson(config, 5, value, label = "一键${if (on) "开启" else "关闭"}全部开关")
     }
 
     /**
