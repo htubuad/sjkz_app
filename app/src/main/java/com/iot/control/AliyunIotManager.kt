@@ -159,13 +159,15 @@ class AliyunIotManager(private val context: Context) {
                 val payload = message?.toString() ?: ""
                 val topicStr = topic ?: ""
                 Log.d(TAG, "收到消息 topic=$topic payload=$payload")
-                // 去重：与上一条完全相同（同 topic + 同 payload）则忽略，避免重复投递
-                if (topicStr == lastTopic && payload == lastPayload) {
+                // 去重：与上一条完全相同（同 topic + 同 payload 归一化后）则忽略
+                // 归一化可避免 130 与 130.0 这类数值相同但字符串不同的重复
+                val normalized = normalizeForDedup(payload)
+                if (topicStr == lastTopic && normalized == lastPayload) {
                     Log.d(TAG, "重复消息已忽略: $payload")
                     return
                 }
                 lastTopic = topicStr
-                lastPayload = payload
+                lastPayload = normalized
                 // 收到平台下发的 property/set 指令时，自动回复 set_reply
                 if (topic?.endsWith("thing/service/property/set") == true) {
                     replyToPropertySet(config, payload)
@@ -327,6 +329,20 @@ class AliyunIotManager(private val context: Context) {
                 Log.e(TAG, "回复 set_reply 失败: ${e.message}")
             }
         }.start()
+    }
+
+    /**
+     * 归一化 JSON 字符串用于去重比较：
+     * 去除小数末尾多余的零（130.0 → 130，130.50 → 130.5），
+     * 使数值相同但字符串表示不同的消息被识别为重复。
+     */
+    private fun normalizeForDedup(payload: String): String {
+        if (payload.isEmpty()) return payload
+        // 去掉小数末尾的 0：130.50 -> 130.5，130.00 -> 130.
+        var result = payload.replace(Regex("\\.(\\d*?)0+(?=[^0-9]|$)"), ".$1")
+        // 去掉末尾孤立的小数点：130. -> 130
+        result = result.replace(Regex("\\.(?=[^0-9]|$)"), "")
+        return result
     }
 
     /**
