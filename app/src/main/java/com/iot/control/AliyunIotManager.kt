@@ -230,10 +230,11 @@ class AliyunIotManager(private val context: Context) {
 
     /**
      * 构造自定义 JSON 并发布到 /user/update Topic
-     * 统一格式: {"from":"phone","type":"<type>","index":<index>,"value":<value>}
+     * 统一格式: {"from":"phone","type":"<type>","index":<index>,"<valueKey>":<value>}
      * 所有类型均携带 index 字段，无具体序号时默认为 0
+     * @param valueKey 数值字段名，默认为 "value"，温度指令使用 "temperature"
      */
-    private fun publishCustomJson(config: DeviceConfig, type: String, value: Number, index: Int = 0, label: String) {
+    private fun publishCustomJson(config: DeviceConfig, type: String, value: Number, index: Int = 0, valueKey: String = "value", label: String) {
         val client = mqttClient ?: run {
             statusListener?.invoke(Status.ERROR, "未连接，无法下发")
             return
@@ -244,7 +245,7 @@ class AliyunIotManager(private val context: Context) {
         }
 
         val topic = customTopic(config)
-        val payload = """{"from":"phone","type":"$type","index":$index,"value":$value}"""
+        val payload = """{"from":"phone","type":"$type","index":$index,"$valueKey":$value}"""
 
         Thread {
             try {
@@ -281,7 +282,8 @@ class AliyunIotManager(private val context: Context) {
     fun setTemperature(config: DeviceConfig, value: Float) {
         // 整数温度以整数形式下发（25.0 → 25），与开关等指令的 value 类型保持一致
         val numValue: Number = if (value == value.toInt().toFloat()) value.toInt() else value
-        publishCustomJson(config, "temperature", numValue, label = "温度 $value°C")
+        // 温度指令使用 "temperature" 作为数值字段名
+        publishCustomJson(config, "temperature", numValue, valueKey = "temperature", label = "温度 $value°C")
     }
 
     /**
