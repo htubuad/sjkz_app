@@ -138,20 +138,6 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "已填入默认模板", Toast.LENGTH_SHORT).show()
         }
 
-        // 长按原始数据复制到剪贴板
-        binding.tvLatestRaw.setOnLongClickListener {
-            val text = binding.tvLatestRaw.text?.toString()?.trim() ?: ""
-            if (text.isNotEmpty()) {
-                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                val clip = ClipData.newPlainText("原始数据", text)
-                clipboard.setPrimaryClip(clip)
-                Toast.makeText(this, "原始数据已复制到剪贴板", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "暂无数据可复制", Toast.LENGTH_SHORT).show()
-            }
-            true
-        }
-
         // 长按连接日志复制到剪贴板
         binding.tvLog.setOnLongClickListener {
             val text = binding.tvLog.text?.toString() ?: ""
@@ -197,7 +183,6 @@ class MainActivity : AppCompatActivity() {
      */
     private fun handleCustomMessage(payload: String) {
         appendLog("收到指令: $payload")
-        binding.tvLatestRaw.text = prettyJson(payload)
         try {
             val json = JSONObject(payload)
             val from = json.optString("from", "未知")
@@ -406,9 +391,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun parseAndUpdateStatus(payload: String) {
-        // 显示原始数据（JSON 美化后）
-        binding.tvLatestRaw.text = prettyJson(payload)
-
         try {
             val json = JSONObject(payload)
             // 直接解析接收到的 JSON 顶层字段（与自定义下发格式一致）
