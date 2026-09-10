@@ -19,11 +19,6 @@ import javax.crypto.spec.SecretKeySpec
  */
 class AliyunIotManager(private val context: Context) {
 
-    init {
-        // 启动时从 SharedPreferences 恢复开关状态到集中状态
-        restoreSwitchStatesFromPrefs()
-    }
-
     companion object {
         private const val TAG = "AliyunIot"
         private const val DEFAULT_REGION = "cn-shanghai"
@@ -85,6 +80,12 @@ class AliyunIotManager(private val context: Context) {
      */
     private val prefs by lazy {
         context.getSharedPreferences("iot_config", android.content.Context.MODE_PRIVATE)
+    }
+
+    // 必须在 deviceState 和 prefs 都声明之后执行 init
+    init {
+        // 启动时从 SharedPreferences 恢复开关状态到集中状态
+        restoreSwitchStatesFromPrefs()
     }
 
     fun isManualDisconnected(): Boolean = prefs.getBoolean("user_manual_disconnect", false)
