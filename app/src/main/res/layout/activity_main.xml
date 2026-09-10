@@ -137,13 +137,17 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- 温度调节卡片 -->
+        <!-- 温度调节卡片（可折叠） -->
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardTemperature"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             app:cardCornerRadius="16dp"
             app:cardElevation="2dp"
-            android:layout_marginBottom="16dp">
+            android:layout_marginBottom="16dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -151,40 +155,70 @@
                 android:orientation="vertical"
                 android:padding="20dp">
 
-                <TextView
+                <!-- 标题行（可点击折叠/展开） -->
+                <LinearLayout
+                    android:id="@+id/layoutTempHeader"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="🌡️ 温度调节"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/gray_800"
-                    android:layout_marginBottom="16dp" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:clickable="true"
+                    android:focusable="true">
 
-                <TextView
-                    android:id="@+id/tvTempValue"
+                    <TextView
+                        android:id="@+id/tvTempTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="🌡️ 温度调节"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/gray_800" />
+
+                    <TextView
+                        android:id="@+id/tvTempArrow"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="›"
+                        android:textSize="28sp"
+                        android:textColor="@color/gray_400" />
+                </LinearLayout>
+
+                <!-- 可折叠内容 -->
+                <LinearLayout
+                    android:id="@+id/layoutTempContent"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="当前温度: 25°C"
-                    android:textSize="20sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/blue_600"
-                    android:gravity="center"
-                    android:layout_marginBottom="16dp" />
+                    android:orientation="vertical"
+                    android:visibility="gone">
 
-                <com.iot.control.RotaryKnobView
-                    android:id="@+id/knobTemperature"
-                    android:layout_width="140dp"
-                    android:layout_height="140dp"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginBottom="12dp" />
+                    <TextView
+                        android:id="@+id/tvTempValue"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="当前温度: 25°C"
+                        android:textSize="20sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/blue_600"
+                        android:gravity="center"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginBottom="16dp" />
 
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="拖动旋钮调整温度，松手后自动下发"
-                    android:textSize="12sp"
-                    android:textColor="@color/gray_400"
-                    android:layout_marginTop="8dp" />
+                    <com.iot.control.RotaryKnobView
+                        android:id="@+id/knobTemperature"
+                        android:layout_width="140dp"
+                        android:layout_height="140dp"
+                        android:layout_gravity="center_horizontal"
+                        android:layout_marginBottom="12dp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="拖动旋钮调整温度，松手后自动下发"
+                        android:textSize="12sp"
+                        android:textColor="@color/gray_400"
+                        android:layout_marginTop="8dp" />
+                </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

@@ -9,6 +9,7 @@ import android.content.res.ColorStateList
 import android.graphics.Typeface
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -52,6 +53,13 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnOpenSwitches.setOnClickListener {
             startActivity(Intent(this, SwitchesActivity::class.java))
+        }
+
+        // 温度卡片折叠/展开
+        binding.layoutTempHeader.setOnClickListener {
+            val isExpanded = binding.layoutTempContent.visibility == View.VISIBLE
+            binding.layoutTempContent.visibility = if (isExpanded) View.GONE else View.VISIBLE
+            binding.tvTempArrow.rotation = if (isExpanded) 0f else 90f
         }
 
         // 旋钮初始配置（温度范围 0~100°C，步长1）
