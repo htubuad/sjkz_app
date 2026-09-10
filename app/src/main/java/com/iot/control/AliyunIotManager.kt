@@ -304,8 +304,9 @@ class AliyunIotManager(private val context: Context) {
         val indexPart = if (index > 0) ""","index":$index""" else ""
 
         // 附带全部参数当前值，构成完整状态快照
-        // 当操作类型本身就是某个参数时（温度/电源/灯），该参数值已由 value 表达，
-        // 为避免重复（如 "value":23,"temperature":23），省略对应的状态字段。
+        // 对于 type=2/3/4（温度/电源/灯），命名字段已表达操作值，故省略通用的 value 字段，
+        // 避免重复（如不再出现 "value":23,"temperature":23）。
+        // 对于 type=1/5（开关），保留 value+index 供设备识别具体操作。
         val tempVal: Number = if (deviceState.temperature == deviceState.temperature.toInt().toFloat())
             deviceState.temperature.toInt() else deviceState.temperature
         // 10 路开关按位打包为十六进制字符串：switch 1 = bit 0 (LSB)，switch 10 = bit 9
@@ -316,13 +317,16 @@ class AliyunIotManager(private val context: Context) {
         val switchesHex = "0x%X".format(switchBits)
 
         val parts = mutableListOf<String>()
-        if (typeCode != 2) parts.add(""""temperature":$tempVal""")       // type=2 温度，value 已含
-        if (typeCode != 3) parts.add(""""power":${if (deviceState.power) 1 else 0}""")  // type=3 电源
-        if (typeCode != 4) parts.add(""""light":${if (deviceState.light) 1 else 0}""")   // type=4 灯
+        if (typeCode != 2) parts.add(""""temperature":$tempVal""")
+        if (typeCode != 3) parts.add(""""power":${if (deviceState.power) 1 else 0}""")
+        if (typeCode != 4) parts.add(""""light":${if (deviceState.light) 1 else 0}""")
         parts.add(""""switches":"$switchesHex"""")
-        val statePart = parts.joinToString(",", prefix = ",", postfix = "")
+        val statePart = parts.joinToString(",")
 
-        val payload = """{"type":$typeCode$indexPart,"value":$value$statePart}"""
+        // type 2/3/4 用命名字段代替 value；type 1/5 保留 value
+        val valuePart = if (typeCode in 2..4) "" else ""","value":$value"""
+
+        val payload = """{"type":$typeCode$indexPart$valuePart,$statePart}"""
 
         Thread {
             try {
