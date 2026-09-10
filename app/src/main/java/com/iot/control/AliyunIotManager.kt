@@ -19,6 +19,11 @@ import javax.crypto.spec.SecretKeySpec
  */
 class AliyunIotManager(private val context: Context) {
 
+    init {
+        // 启动时从 SharedPreferences 恢复开关状态到集中状态
+        restoreSwitchStatesFromPrefs()
+    }
+
     companion object {
         private const val TAG = "AliyunIot"
         private const val DEFAULT_REGION = "cn-shanghai"
@@ -39,6 +44,39 @@ class AliyunIotManager(private val context: Context) {
     // 发送端去重：记录每个 (type,index) 上次下发的值，值未变化则不重复下发
     // key 格式: "type_index"，例如开关7为 "1_7"，温度为 "2_0"
     private val lastSentValues = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /**
+     * 设备当前全部参数状态（集中管理）
+     * 每次下发时，除了本次操作的值，还会把所有参数的当前值一并发出，
+     * 让设备端获得完整状态快照。
+     */
+    data class DeviceState(
+        var temperature: Float = 25f,
+        var power: Boolean = false,
+        var light: Boolean = false,
+        val switches: BooleanArray = BooleanArray(10) { false }
+    )
+
+    private val deviceState = DeviceState()
+
+    /** 获取设备当前状态快照（只读副本） */
+    fun getDeviceState(): DeviceState = deviceState.copy(switches = deviceState.switches.copyOf())
+
+    /** 用外部持久化的开关状态同步集中状态（App 启动/恢复时调用） */
+    fun syncSwitchStates(states: BooleanArray) {
+        for (i in 0 until minOf(states.size, 10)) {
+            deviceState.switches[i] = states[i]
+        }
+    }
+
+    /** 从 SharedPreferences 恢复开关状态到集中状态 */
+    fun restoreSwitchStatesFromPrefs() {
+        val saved = prefs.getString("switch_states", null) ?: return
+        val parts = saved.split(",")
+        for (i in 0 until minOf(parts.size, 10)) {
+            deviceState.switches[i] = parts[i] == "1"
+        }
+    }
 
     /**
      * 标记用户是否主动断开过连接（持久化到 SharedPreferences，App 重启后仍有效）
@@ -234,9 +272,11 @@ class AliyunIotManager(private val context: Context) {
 
     /**
      * 构造自定义 JSON 并发布到 /user/update Topic
-     * 精简格式: {"type":<typeCode>[,"index":<index>],"value":<value>}
+     * 格式: {"type":<typeCode>[,"index":<index>],"value":<value>,
+     *        "temperature":<t>,"power":<p>,"light":<l>,"switches":[...]}
      * - 省略 from 字段（恒为 1，无需发送）
      * - index 为 0 时省略
+     * - 除本次操作的 type/index/value 外，还附带温度、电源、灯及全部 10 路开关的当前值
      * - 仅当值与上次下发不同时才发送，避免重复下发相同值
      * type 编码: 1=switch 单路开关, 2=temperature 温度, 3=power 电源, 4=light 灯, 5=switch_all 全控
      */
@@ -261,7 +301,15 @@ class AliyunIotManager(private val context: Context) {
 
         val topic = customTopic(config)
         val indexPart = if (index > 0) ""","index":$index""" else ""
-        val payload = """{"type":$typeCode$indexPart,"value":$value}"""
+
+        // 附带全部参数当前值，构成完整状态快照
+        val tempVal: Number = if (deviceState.temperature == deviceState.temperature.toInt().toFloat())
+            deviceState.temperature.toInt() else deviceState.temperature
+        val switchesJson = deviceState.switches.joinToString(",", "[", "]") { if (it) "1" else "0" }
+        val statePart = ""","temperature":$tempVal,"power":${if (deviceState.power) 1 else 0},""" +
+                """"light":${if (deviceState.light) 1 else 0},"switches":$switchesJson"""
+
+        val payload = """{"type":$typeCode$indexPart,"value":$value$statePart}"""
 
         Thread {
             try {
@@ -280,6 +328,7 @@ class AliyunIotManager(private val context: Context) {
      * 电源开关（自定义格式下发）type=3
      */
     fun setPower(config: DeviceConfig, on: Boolean) {
+        deviceState.power = on
         val value = if (on) 1 else 0
         publishCustomJson(config, 3, value, label = "电源开关 ${if (on) "开" else "关"}")
     }
@@ -288,6 +337,7 @@ class AliyunIotManager(private val context: Context) {
      * 灯开关（自定义格式下发）type=4
      */
     fun setLight(config: DeviceConfig, on: Boolean) {
+        deviceState.light = on
         val value = if (on) 1 else 0
         publishCustomJson(config, 4, value, label = "灯开关 ${if (on) "开" else "关"}")
     }
@@ -297,6 +347,7 @@ class AliyunIotManager(private val context: Context) {
      * @param value 温度值（支持浮点数）
      */
     fun setTemperature(config: DeviceConfig, value: Float) {
+        deviceState.temperature = value
         // 整数温度以整数形式下发（25.0 → 25）
         val numValue: Number = if (value == value.toInt().toFloat()) value.toInt() else value
         publishCustomJson(config, 2, numValue, label = "温度 $value°C")
@@ -309,6 +360,7 @@ class AliyunIotManager(private val context: Context) {
      */
     fun setSwitch(config: DeviceConfig, index: Int, on: Boolean) {
         if (index !in 1..10) return
+        deviceState.switches[index - 1] = on
         val value = if (on) 1 else 0
         publishCustomJson(config, 1, value, index = index, label = "开关$index ${if (on) "开" else "关"}")
     }
@@ -318,6 +370,7 @@ class AliyunIotManager(private val context: Context) {
      * @param on true=全部开启(1), false=全部关闭(0)
      */
     fun setAllSwitches(config: DeviceConfig, on: Boolean) {
+        for (i in 0 until 10) deviceState.switches[i] = on
         val value = if (on) 1 else 0
         publishCustomJson(config, 5, value, label = "一键${if (on) "开启" else "关闭"}全部开关")
     }

@@ -85,6 +85,8 @@ class SwitchesActivity : AppCompatActivity() {
         for (i in 0 until minOf(parts.size, 10)) {
             switchStates[i] = parts[i] == "1"
         }
+        // 同步到 AliyunIotManager 的集中状态，确保下发时附带正确的开关值
+        iotManager.syncSwitchStates(switchStates)
     }
 
     /** 保存开关状态到 SharedPreferences */
