@@ -312,7 +312,7 @@ class AliyunIotManager(private val context: Context) {
         for (i in 0 until 10) {
             if (deviceState.switches[i]) switchBits = switchBits or (1 shl i)
         }
-        val switchesHex = "0x%03X".format(switchBits)
+        val switchesHex = "0x%X".format(switchBits)
         val statePart = ""","temperature":$tempVal,"power":${if (deviceState.power) 1 else 0},""" +
                 """"light":${if (deviceState.light) 1 else 0},"switches":"$switchesHex""""
 
