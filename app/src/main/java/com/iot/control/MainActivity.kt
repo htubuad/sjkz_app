@@ -515,7 +515,9 @@ class MainActivity : AppCompatActivity() {
         val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
             .format(java.util.Date())
         val current = binding.tvLog.text.toString()
-        val line = "[$time] $msg"
+        // 单条日志截断到 48 字符，避免长 JSON 换行导致 10 条显示不全
+        val rawLine = "[$time] $msg"
+        val line = if (rawLine.length > 48) rawLine.take(47) + "…" else rawLine
         // 最新日志显示在最上面
         val combined = if (current.isBlank() || current == "暂无日志") line else "$line\n$current"
         // 只保留最近 10 条
