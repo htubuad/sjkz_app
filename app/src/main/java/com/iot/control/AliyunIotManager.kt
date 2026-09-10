@@ -317,13 +317,13 @@ class AliyunIotManager(private val context: Context) {
         val switchesHex = "0x%X".format(switchBits)
 
         val parts = mutableListOf<String>()
-        if (typeCode != 2) parts.add(""""temperature":$tempVal""")
-        if (typeCode != 3) parts.add(""""power":${if (deviceState.power) 1 else 0}""")
-        if (typeCode != 4) parts.add(""""light":${if (deviceState.light) 1 else 0}""")
+        parts.add(""""temperature":$tempVal""")
+        parts.add(""""power":${if (deviceState.power) 1 else 0}""")
+        parts.add(""""light":${if (deviceState.light) 1 else 0}""")
         parts.add(""""switches":"$switchesHex"""")
         val statePart = parts.joinToString(",")
 
-        // type 2/3/4 用命名字段代替 value；type 1/5 保留 value
+        // type 2/3/4 用命名字段表达操作值，省略通用 value；type 1/5 保留 value
         val valuePart = if (typeCode in 2..4) "" else ""","value":$value"""
 
         val payload = """{"type":$typeCode$indexPart$valuePart,$statePart}"""
