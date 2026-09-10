@@ -524,6 +524,12 @@ class MainActivity : AppCompatActivity() {
         val combined = if (current.isBlank() || current == "暂无日志") line else "$line\n$current"
         // 只保留最近 10 条
         val lines = combined.split("\n").take(10)
+        // 保存外层 ScrollView 滚动位置，防止更新日志后页面跳转到底部
+        val scrollView = binding.root as? android.widget.ScrollView
+        val savedScrollY = scrollView?.scrollY ?: 0
         binding.tvLog.text = lines.joinToString("\n")
+        // 立即恢复，并在下一帧再恢复一次（布局完成后）
+        scrollView?.scrollTo(0, savedScrollY)
+        scrollView?.post { scrollView.scrollTo(0, savedScrollY) }
     }
 }
