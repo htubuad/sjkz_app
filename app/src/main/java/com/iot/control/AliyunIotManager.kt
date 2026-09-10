@@ -23,7 +23,6 @@ class AliyunIotManager(private val context: Context) {
         private const val TAG = "AliyunIot"
         private const val DEFAULT_REGION = "cn-shanghai"
         private const val POWER_PROPERTY = "PowerSwitch"
-        private const val LIGHT_PROPERTY = "LightSwitch"
         private const val TEMP_PROPERTY = "Temperature"
     }
 
@@ -73,6 +72,20 @@ class AliyunIotManager(private val context: Context) {
         }
     }
 
+    /** 从 SharedPreferences 恢复电源和灯的状态 */
+    fun restorePowerLightFromPrefs() {
+        deviceState.power = prefs.getBoolean("power_on", false)
+        deviceState.light = prefs.getBoolean("light_on", false)
+    }
+
+    /** 保存电源和灯的状态到 SharedPreferences */
+    private fun savePowerLightToPrefs() {
+        prefs.edit()
+            .putBoolean("power_on", deviceState.power)
+            .putBoolean("light_on", deviceState.light)
+            .apply()
+    }
+
     /**
      * 标记用户是否主动断开过连接（持久化到 SharedPreferences，App 重启后仍有效）
      * - true: 主动断开过，应用启动时不自动重连，必须用户再次点击连接
@@ -84,8 +97,9 @@ class AliyunIotManager(private val context: Context) {
 
     // 必须在 deviceState 和 prefs 都声明之后执行 init
     init {
-        // 启动时从 SharedPreferences 恢复开关状态到集中状态
+        // 启动时从 SharedPreferences 恢复状态到集中状态
         restoreSwitchStatesFromPrefs()
+        restorePowerLightFromPrefs()
     }
 
     fun isManualDisconnected(): Boolean = prefs.getBoolean("user_manual_disconnect", false)
@@ -346,6 +360,7 @@ class AliyunIotManager(private val context: Context) {
      */
     fun setPower(config: DeviceConfig, on: Boolean) {
         deviceState.power = on
+        savePowerLightToPrefs()
         val value = if (on) 1 else 0
         publishCustomJson(config, 3, value, label = "电源开关 ${if (on) "开" else "关"}")
     }
@@ -355,6 +370,7 @@ class AliyunIotManager(private val context: Context) {
      */
     fun setLight(config: DeviceConfig, on: Boolean) {
         deviceState.light = on
+        savePowerLightToPrefs()
         val value = if (on) 1 else 0
         publishCustomJson(config, 4, value, label = "灯开关 ${if (on) "开" else "关"}")
     }

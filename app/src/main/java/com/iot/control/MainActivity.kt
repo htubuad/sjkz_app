@@ -35,6 +35,13 @@ class MainActivity : AppCompatActivity() {
         prefs = getSharedPreferences("iot_config", MODE_PRIVATE)
         iotManager = (application as IoTApp).iotManager
 
+        // 从集中状态恢复电源和灯的开关状态
+        val savedState = iotManager.getDeviceState()
+        powerOn = savedState.power
+        lightOn = savedState.light
+        updatePowerUI()
+        updateLightUI()
+
         setupListeners()
         refreshStatus()
         autoConnect()
