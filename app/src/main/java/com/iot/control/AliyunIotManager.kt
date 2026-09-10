@@ -306,9 +306,15 @@ class AliyunIotManager(private val context: Context) {
         // 附带全部参数当前值，构成完整状态快照
         val tempVal: Number = if (deviceState.temperature == deviceState.temperature.toInt().toFloat())
             deviceState.temperature.toInt() else deviceState.temperature
-        val switchesJson = deviceState.switches.joinToString(",", "[", "]") { if (it) "1" else "0" }
+        // 10 路开关按位打包为十六进制字符串：switch 1 = bit 0 (LSB)，switch 10 = bit 9
+        // 例如 [0,0,0,0,0,1,1,1,0,0] → bits 5,6,7 置位 → "0E0"
+        var switchBits = 0
+        for (i in 0 until 10) {
+            if (deviceState.switches[i]) switchBits = switchBits or (1 shl i)
+        }
+        val switchesHex = "%03X".format(switchBits)
         val statePart = ""","temperature":$tempVal,"power":${if (deviceState.power) 1 else 0},""" +
-                """"light":${if (deviceState.light) 1 else 0},"switches":$switchesJson"""
+                """"light":${if (deviceState.light) 1 else 0},"switches":"$switchesHex""""
 
         val payload = """{"type":$typeCode$indexPart,"value":$value$statePart}"""
 
