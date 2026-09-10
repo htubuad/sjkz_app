@@ -379,7 +379,7 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="📡 设备最新状态"
+                    android:text="📡 接收数据值"
                     android:textSize="18sp"
                     android:textStyle="bold"
                     android:textColor="@color/gray_800"
