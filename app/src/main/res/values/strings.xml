@@ -17,7 +17,7 @@
     <string name="power_off">关闭</string>
     <string name="device_power">设备开关</string>
     <string name="current_status">当前状态</string>
-    <string name="connection_log">连接日志</string>
+    <string name="connection_log">收发日志</string>
     <string name="save_success">配置已保存</string>
     <string name="input_required">请填写设备三元组</string>
     <string name="copy_link">复制下载链接</string>
