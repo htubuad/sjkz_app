@@ -26,6 +26,7 @@ class SettingsActivity : AppCompatActivity() {
         loadSavedConfig()
         setupListeners()
         refreshStatus()
+        showVersion()
     }
 
     private fun setupListeners() {
@@ -172,6 +173,11 @@ class SettingsActivity : AppCompatActivity() {
         binding.etDeviceName.setText(prefs.getString("deviceName", ""))
         binding.etDeviceSecret.setText(prefs.getString("deviceSecret", ""))
         binding.etRegion.setText(prefs.getString("region", "cn-shanghai"))
+    }
+
+    private fun showVersion() {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        binding.tvVersion.text = "v${info.versionName} (${info.versionCode})"
     }
 
     private fun appendLog(msg: String) {
