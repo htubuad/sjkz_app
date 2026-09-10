@@ -36,6 +36,10 @@ class AliyunIotManager(private val context: Context) {
     @Volatile
     private var lastPayload: String? = null
 
+    // 发送端去重：记录每个 (type,index) 上次下发的值，值未变化则不重复下发
+    // key 格式: "type_index"，例如开关7为 "1_7"，温度为 "2_0"
+    private val lastSentValues = java.util.concurrent.ConcurrentHashMap<String, String>()
+
     /**
      * 标记用户是否主动断开过连接（持久化到 SharedPreferences，App 重启后仍有效）
      * - true: 主动断开过，应用启动时不自动重连，必须用户再次点击连接
@@ -230,9 +234,11 @@ class AliyunIotManager(private val context: Context) {
 
     /**
      * 构造自定义 JSON 并发布到 /user/update Topic
-     * 统一纯数字格式: {"from":1,"type":<typeCode>,"index":<index>,"value":<value>}
+     * 精简格式: {"type":<typeCode>[,"index":<index>],"value":<value>}
+     * - 省略 from 字段（恒为 1，无需发送）
+     * - index 为 0 时省略
+     * - 仅当值与上次下发不同时才发送，避免重复下发相同值
      * type 编码: 1=switch 单路开关, 2=temperature 温度, 3=power 电源, 4=light 灯, 5=switch_all 全控
-     * from=1 表示手机端
      */
     private fun publishCustomJson(config: DeviceConfig, typeCode: Int, value: Number, index: Int = 0, label: String) {
         val client = mqttClient ?: run {
@@ -244,12 +250,23 @@ class AliyunIotManager(private val context: Context) {
             return
         }
 
+        // 发送端去重：值与上次下发相同则跳过
+        val dedupKey = "${typeCode}_$index"
+        val valueStr = value.toString()
+        val lastValue = lastSentValues[dedupKey]
+        if (lastValue != null && lastValue == valueStr) {
+            Log.d(TAG, "值未变化，跳过下发[$label]: type=$typeCode index=$index value=$value")
+            return
+        }
+
         val topic = customTopic(config)
-        val payload = """{"from":1,"type":$typeCode,"index":$index,"value":$value}"""
+        val indexPart = if (index > 0) ""","index":$index""" else ""
+        val payload = """{"type":$typeCode$indexPart,"value":$value}"""
 
         Thread {
             try {
                 client.publish(topic, payload.toByteArray(Charsets.UTF_8), 0, false)
+                lastSentValues[dedupKey] = valueStr
                 Log.i(TAG, "下发[$label]: $topic $payload")
                 statusListener?.invoke(Status.CONNECTED, "已下发 $label: $payload")
             } catch (e: Exception) {

@@ -115,7 +115,7 @@ class MainActivity : AppCompatActivity() {
             appendLog("发送 → $topic : $payload")
         }
         binding.btnFillTemplate.setOnClickListener {
-            binding.etCustomPayload.setText("{\"from\":\"phone\",\"num\":999}")
+            binding.etCustomPayload.setText("{\"num\":999}")
             binding.etCustomPayload.setSelection(binding.etCustomPayload.text.length)
             Toast.makeText(this, "已填入默认模板", Toast.LENGTH_SHORT).show()
         }

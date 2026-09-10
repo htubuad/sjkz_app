@@ -28,6 +28,7 @@ class SwitchesActivity : AppCompatActivity() {
 
         binding.btnBack.setOnClickListener { finish() }
 
+        loadSwitchStates()
         setupSwitches()
         refreshEnabled()
     }
@@ -40,18 +41,21 @@ class SwitchesActivity : AppCompatActivity() {
         val marginPx = dp(8)
 
         for (i in 1..10) {
+            val idx = i - 1
             val btn = Button(this).apply {
-                text = "开关$i: 关"
+                text = "开关$i: ${if (switchStates[idx]) "开" else "关"}"
                 textSize = 12f
                 setTextColor(getColor(R.color.white))
-                setBackgroundResource(R.drawable.switch_circle_gray)
+                setBackgroundResource(
+                    if (switchStates[idx]) R.drawable.switch_circle_green else R.drawable.switch_circle_gray
+                )
                 backgroundTintList = null
                 gravity = Gravity.CENTER
                 setPadding(0, 0, 0, 0)
                 setOnClickListener {
-                    val idx = i - 1
                     switchStates[idx] = !switchStates[idx]
                     updateSwitchUI(idx)
+                    saveSwitchStates()
                     iotManager.setSwitch(getSavedConfig(), i, switchStates[idx])
                     Toast.makeText(
                         this@SwitchesActivity,
@@ -72,6 +76,25 @@ class SwitchesActivity : AppCompatActivity() {
             binding.gridSwitches.addView(btn)
             switchButtons.add(btn)
         }
+    }
+
+    /** 从 SharedPreferences 读取上次开关状态 */
+    private fun loadSwitchStates() {
+        val saved = prefs.getString("switch_states", null) ?: return
+        val parts = saved.split(",")
+        for (i in 0 until minOf(parts.size, 10)) {
+            switchStates[i] = parts[i] == "1"
+        }
+    }
+
+    /** 保存开关状态到 SharedPreferences */
+    private fun saveSwitchStates() {
+        val sb = StringBuilder()
+        for (i in 0 until 10) {
+            if (i > 0) sb.append(",")
+            sb.append(if (switchStates[i]) "1" else "0")
+        }
+        prefs.edit().putString("switch_states", sb.toString()).apply()
     }
 
     private fun updateSwitchUI(index: Int) {

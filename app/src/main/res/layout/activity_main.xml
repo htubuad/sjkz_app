@@ -230,8 +230,8 @@
                     android:minLines="3"
                     android:maxLines="6"
                     android:gravity="top|start"
-                    android:hint='{"from":"phone","num":999}'
-                    android:text='{"from":"phone","num":999}'
+                    android:hint='{"num":999}'
+                    android:text='{"num":999}'
                     android:textSize="14sp"
                     android:fontFamily="monospace"
                     android:inputType="textMultiLine|textNoSuggestions"
