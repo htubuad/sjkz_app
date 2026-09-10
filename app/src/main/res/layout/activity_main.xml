@@ -473,7 +473,7 @@
                 <TextView
                     android:id="@+id/tvLog"
                     android:layout_width="match_parent"
-                    android:layout_height="180dp"
+                    android:layout_height="240dp"
                     android:text="暂无日志"
                     android:textSize="13sp"
                     android:textColor="@color/gray_400"
