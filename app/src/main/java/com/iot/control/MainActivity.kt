@@ -23,6 +23,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var iotManager: AliyunIotManager
     private lateinit var prefs: SharedPreferences
 
+    private var powerOn = false
+    private var lightOn = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -97,6 +100,22 @@ class MainActivity : AppCompatActivity() {
         binding.btnClearLog.setOnClickListener {
             binding.tvLog.text = "暂无日志"
             Toast.makeText(this, "日志已清除", Toast.LENGTH_SHORT).show()
+        }
+
+        // 电源开关
+        binding.btnPower.setOnClickListener {
+            powerOn = !powerOn
+            updatePowerUI()
+            iotManager.setPower(getSavedConfig(), powerOn)
+            appendLog("电源 ${if (powerOn) "开启" else "关闭"}")
+        }
+
+        // 灯开关
+        binding.btnLight.setOnClickListener {
+            lightOn = !lightOn
+            updateLightUI()
+            iotManager.setLight(getSavedConfig(), lightOn)
+            appendLog("灯 ${if (lightOn) "开启" else "关闭"}")
         }
 
         // 自定义消息下发
@@ -335,6 +354,30 @@ class MainActivity : AppCompatActivity() {
         binding.knobTemperature.alpha = if (enabled) 1f else 0.5f
         binding.btnOpenSwitches.isEnabled = enabled
         binding.btnOpenSwitches.alpha = if (enabled) 1f else 0.5f
+        binding.btnPower.isEnabled = enabled
+        binding.btnPower.alpha = if (enabled) 1f else 0.5f
+        binding.btnLight.isEnabled = enabled
+        binding.btnLight.alpha = if (enabled) 1f else 0.5f
+    }
+
+    private fun updatePowerUI() {
+        if (powerOn) {
+            binding.btnPower.text = "电源: 开"
+            binding.btnPower.backgroundTintList = ColorStateList.valueOf(getColor(R.color.green_600))
+        } else {
+            binding.btnPower.text = "电源: 关"
+            binding.btnPower.backgroundTintList = ColorStateList.valueOf(getColor(R.color.gray_400))
+        }
+    }
+
+    private fun updateLightUI() {
+        if (lightOn) {
+            binding.btnLight.text = "灯: 开"
+            binding.btnLight.backgroundTintList = ColorStateList.valueOf(getColor(R.color.yellow_500))
+        } else {
+            binding.btnLight.text = "灯: 关"
+            binding.btnLight.backgroundTintList = ColorStateList.valueOf(getColor(R.color.gray_400))
+        }
     }
 
     private fun getSavedConfig(): AliyunIotManager.DeviceConfig {

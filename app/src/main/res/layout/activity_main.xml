@@ -190,6 +190,61 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- 电源 & 灯控制卡片 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="⚡ 电源 &amp; 灯控制"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/gray_800"
+                    android:layout_marginBottom="16dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnPower"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_weight="1"
+                        android:layout_marginEnd="8dp"
+                        android:text="电源: 关"
+                        android:textSize="16sp"
+                        android:backgroundTint="@color/gray_400"
+                        android:textColor="@color/white"
+                        android:enabled="false" />
+
+                    <Button
+                        android:id="@+id/btnLight"
+                        android:layout_width="0dp"
+                        android:layout_height="56dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="8dp"
+                        android:text="灯: 关"
+                        android:textSize="16sp"
+                        android:backgroundTint="@color/gray_400"
+                        android:textColor="@color/white"
+                        android:enabled="false" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
         <!-- 自定义消息下发卡片 -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
