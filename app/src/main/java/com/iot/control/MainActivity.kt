@@ -88,9 +88,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 启用日志内部滚动
-        binding.tvLog.movementMethod = android.text.method.ScrollingMovementMethod()
-
         // 清除日志
         binding.btnClearLog.setOnClickListener {
             binding.tvLog.text = "暂无日志"
