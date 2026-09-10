@@ -137,7 +137,7 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- 温度 / 电源 / 灯 控制卡片 -->
+        <!-- 温度调节卡片 -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -186,15 +186,23 @@
                     android:text="拖动旋钮调整温度，上方按钮实时显示数值，松手后点击下发"
                     android:textSize="12sp"
                     android:textColor="@color/gray_400"
-                    android:layout_marginTop="8dp"
-                    android:layout_marginBottom="20dp" />
+                    android:layout_marginTop="8dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
 
-                <!-- 分隔线 -->
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:background="@color/gray_200"
-                    android:layout_marginBottom="20dp" />
+        <!-- 电源 & 灯控制卡片 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
 
                 <TextView
                     android:layout_width="match_parent"
