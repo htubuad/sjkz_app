@@ -88,6 +88,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // 启用日志内部滚动
+        binding.tvLog.movementMethod = android.text.method.ScrollingMovementMethod()
+
         // 清除日志
         binding.btnClearLog.setOnClickListener {
             binding.tvLog.text = "暂无日志"
@@ -515,8 +518,8 @@ class MainActivity : AppCompatActivity() {
         val line = "[$time] $msg"
         // 最新日志显示在最上面
         val combined = if (current.isBlank() || current == "暂无日志") line else "$line\n$current"
-        // 只保留最近 20 条
-        val lines = combined.split("\n").take(20)
+        // 只保留最近 10 条
+        val lines = combined.split("\n").take(10)
         binding.tvLog.text = lines.joinToString("\n")
     }
 }
