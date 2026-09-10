@@ -58,6 +58,33 @@
                     android:orientation="vertical"
                     android:padding="20dp">
 
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="16dp">
+
+                        <Button
+                            android:id="@+id/btnAllOn"
+                            android:layout_width="0dp"
+                            android:layout_height="48dp"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="8dp"
+                            android:text="全部开启"
+                            android:textColor="@color/white"
+                            android:backgroundTint="@color/green_500" />
+
+                        <Button
+                            android:id="@+id/btnAllOff"
+                            android:layout_width="0dp"
+                            android:layout_height="48dp"
+                            android:layout_weight="1"
+                            android:layout_marginStart="8dp"
+                            android:text="全部关闭"
+                            android:textColor="@color/white"
+                            android:backgroundTint="@color/gray_500" />
+                    </LinearLayout>
+
                     <androidx.gridlayout.widget.GridLayout
                         android:id="@+id/gridSwitches"
                         android:layout_width="match_parent"

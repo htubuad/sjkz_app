@@ -28,6 +28,9 @@ class SwitchesActivity : AppCompatActivity() {
 
         binding.btnBack.setOnClickListener { finish() }
 
+        binding.btnAllOn.setOnClickListener { applyAll(true) }
+        binding.btnAllOff.setOnClickListener { applyAll(false) }
+
         loadSwitchStates()
         setupSwitches()
         refreshEnabled()
@@ -116,6 +119,23 @@ class SwitchesActivity : AppCompatActivity() {
             btn.isEnabled = enabled
             btn.alpha = if (enabled) 1f else 0.5f
         }
+        binding.btnAllOn.isEnabled = enabled
+        binding.btnAllOff.isEnabled = enabled
+        binding.btnAllOn.alpha = if (enabled) 1f else 0.5f
+        binding.btnAllOff.alpha = if (enabled) 1f else 0.5f
+    }
+
+    /** 一键全开 / 全关：更新本地状态、UI、持久化并下发 type=5 指令 */
+    private fun applyAll(on: Boolean) {
+        for (i in 0 until 10) switchStates[i] = on
+        for (i in 0 until 10) updateSwitchUI(i)
+        saveSwitchStates()
+        iotManager.setAllSwitches(getSavedConfig(), on)
+        Toast.makeText(
+            this,
+            if (on) "已全部开启" else "已全部关闭",
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun getSavedConfig(): AliyunIotManager.DeviceConfig {
