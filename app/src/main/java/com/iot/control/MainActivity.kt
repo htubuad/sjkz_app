@@ -60,40 +60,24 @@ class MainActivity : AppCompatActivity() {
             max = 100f
             step = 1f
             value = 25f
-            // 拖动时实时更新按钮文字
+            // 拖动时实时更新温度提示文字
             onValueChanged = { v ->
-                binding.btnSetTemp.text = "下发 ${formatTemp(v)}°C"
+                binding.tvTempValue.text = "当前温度: ${formatTemp(v)}°C"
             }
-            // 松手时下发（用户也可点击按钮手动下发）
+            // 松手时自动下发
             onValueFinalized = { v ->
                 iotManager.setTemperature(getSavedConfig(), v)
                 appendLog("旋钮下发: 温度 ${formatTemp(v)}°C (Temperature=$v)")
-                // 变色反馈
-                val original = ColorStateList.valueOf(getColor(R.color.blue_600))
-                val highlight = ColorStateList.valueOf(getColor(R.color.green_600))
-                binding.btnSetTemp.backgroundTintList = highlight
-                binding.btnSetTemp.text = "已下发 ${formatTemp(v)}°C"
-                binding.btnSetTemp.postDelayed({
-                    binding.btnSetTemp.backgroundTintList = original
-                    binding.btnSetTemp.text = "下发 ${formatTemp(v)}°C"
+                // 下发反馈：文字变绿后恢复
+                val original = getColor(R.color.blue_600)
+                val highlight = getColor(R.color.green_600)
+                binding.tvTempValue.setTextColor(highlight)
+                binding.tvTempValue.text = "已下发: ${formatTemp(v)}°C"
+                binding.tvTempValue.postDelayed({
+                    binding.tvTempValue.setTextColor(original)
+                    binding.tvTempValue.text = "当前温度: ${formatTemp(v)}°C"
                 }, 800)
             }
-        }
-
-        // 手动点击下发按钮
-        binding.btnSetTemp.setOnClickListener {
-            val temp = binding.knobTemperature.value
-            iotManager.setTemperature(getSavedConfig(), temp)
-            appendLog("按钮下发: 温度 ${formatTemp(temp)}°C (Temperature=$temp)")
-            // 变色反馈
-            val original = ColorStateList.valueOf(getColor(R.color.blue_600))
-            val highlight = ColorStateList.valueOf(getColor(R.color.green_600))
-            binding.btnSetTemp.backgroundTintList = highlight
-            binding.btnSetTemp.text = "已下发 ${formatTemp(temp)}°C"
-            binding.btnSetTemp.postDelayed({
-                binding.btnSetTemp.backgroundTintList = original
-                binding.btnSetTemp.text = "下发 ${formatTemp(temp)}°C"
-            }, 800)
         }
 
         // 清除日志
@@ -348,10 +332,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setControlEnabled(enabled: Boolean) {
-        binding.btnSetTemp.isEnabled = enabled
-        binding.btnSetTemp.alpha = if (enabled) 1f else 0.5f
         binding.knobTemperature.isEnabled = enabled
         binding.knobTemperature.alpha = if (enabled) 1f else 0.5f
+        binding.tvTempValue.alpha = if (enabled) 1f else 0.5f
         binding.btnOpenSwitches.isEnabled = enabled
         binding.btnOpenSwitches.alpha = if (enabled) 1f else 0.5f
         binding.btnPower.isEnabled = enabled
