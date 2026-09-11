@@ -157,7 +157,15 @@ class MainActivity : AppCompatActivity() {
         iotManager.statusListener = { status, msg ->
             runOnUiThread {
                 updateStatusUI(status, msg)
-                appendLog(msg)
+                // "发送中..." 仅作为状态提示，不进收发日志（原始报文由 sentPayloadListener 显示）
+                if (!msg.startsWith("发送中")) appendLog(msg)
+            }
+        }
+
+        // 控制端下发原始报文显示到收发日志，便于分析
+        iotManager.sentPayloadListener = { _, payload ->
+            runOnUiThread {
+                appendLog("发送 → $payload")
             }
         }
 

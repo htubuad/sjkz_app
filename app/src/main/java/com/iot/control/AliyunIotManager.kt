@@ -121,6 +121,8 @@ class AliyunIotManager(private val context: Context) {
 
     var statusListener: ((Status, String) -> Unit)? = null
     var messageListener: ((String, String) -> Unit)? = null
+    /** 发送监听：控制端下发成功后触发 (topic, payload)，便于 UI 显示原始报文 */
+    var sentPayloadListener: ((String, String) -> Unit)? = null
     /** 回执监听：设备返回 Flag="P" 时触发 (success, label) */
     var ackListener: ((Boolean, String) -> Unit)? = null
 
@@ -371,6 +373,8 @@ class AliyunIotManager(private val context: Context) {
                 client.publish(topic, payload.toByteArray(Charsets.UTF_8), 0, false)
                 lastSentValues[dedupKey] = valueStr
                 Log.i(TAG, "下发[$label]: $topic $payload")
+                // 通知 UI 显示控制端发送的原始报文（便于分析）
+                sentPayloadListener?.invoke(topic, payload)
                 // 设置待确认回执
                 pendingAckLabel = label
                 pendingAckDeviceId = deviceId
