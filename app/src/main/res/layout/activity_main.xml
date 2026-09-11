@@ -457,14 +457,6 @@
                         android:backgroundTint="@color/gray_400"
                         android:textColor="@color/white" />
                 </LinearLayout>
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="提示：用 App 自身连接自发自收，用于验证订阅与消息处理逻辑"
-                    android:textSize="11sp"
-                    android:textColor="@color/gray_400"
-                    android:layout_marginTop="8dp" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
