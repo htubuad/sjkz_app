@@ -153,7 +153,9 @@ class AliyunIotManager(private val context: Context) {
                 Toast(context).apply {
                     duration = Toast.LENGTH_LONG
                     view = toastView
-                    setGravity(android.view.Gravity.CENTER, 0, 0)
+                    // 靠下显示，避免遮挡屏幕中央内容
+                    val yOffset = (120 * context.resources.displayMetrics.density).toInt()
+                    setGravity(android.view.Gravity.BOTTOM, 0, yOffset)
                 }.show()
                 Log.i(TAG, "回执弹窗已显示: $text")
             } catch (e: Exception) {
