@@ -172,8 +172,11 @@ class MainActivity : AppCompatActivity() {
         iotManager.ackListener = { success, label ->
             runOnUiThread {
                 if (success) {
+                    // 收到设备回执，弹窗显示发送成功并自动消失
+                    Toast.makeText(this, "✓ 发送成功: $label", Toast.LENGTH_SHORT).show()
                     appendLog("✓ 设备已执行: $label")
                 } else {
+                    Toast.makeText(this, "✗ 未收到回执: $label", Toast.LENGTH_SHORT).show()
                     appendLog("✗ 未收到设备回执: $label (超时)")
                 }
             }
