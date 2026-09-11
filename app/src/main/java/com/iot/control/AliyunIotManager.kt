@@ -118,12 +118,17 @@ class AliyunIotManager(private val context: Context) {
                     deviceState.switches[i] = (bits and (1 shl i)) != 0
                 }
             }
-            // 温度：优先 Temp，其次 Field1
-            val tempVal = optIgnoreCase(json, "Temp") ?: optIgnoreCase(json, "Field1")
-            if (tempVal != null) {
-                val temp = toDouble(tempVal)
-                if (!temp.isNaN()) deviceState.temperature = temp.toFloat()
+            // 温度：Field1 为设备确认的设定温度（与控制报文 C>D 的 Field1 对应），
+            // 非零时优先采用；否则回退到 Temp（设备当前环境温度）
+            val field1Val = optIgnoreCase(json, "Field1")
+            val field1Temp = if (field1Val != null) toDouble(field1Val) else Double.NaN
+            val tempVal = if (!field1Temp.isNaN() && field1Temp != 0.0) {
+                field1Temp
+            } else {
+                val t = optIgnoreCase(json, "Temp")
+                if (t != null) toDouble(t) else Double.NaN
             }
+            if (!tempVal.isNaN()) deviceState.temperature = tempVal.toFloat()
             // 电源（字段存在时才覆盖）
             val powerVal = optIgnoreCase(json, "power")
             if (powerVal != null) {
