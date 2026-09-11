@@ -265,6 +265,22 @@ class AliyunIotManager(private val context: Context) {
                 }
                 lastTopic = topicStr
                 lastPayload = normalized
+                // 自动匹配设备号版本：收到任何带 DeviceID 的消息时，
+                // 若设备号前缀(下划线前)与当前配置一致，采用收到的完整 DeviceID
+                // （含设备真实版本号），使后续发送与接收的 DeviceID 完全一致
+                try {
+                    val recvJson = org.json.JSONObject(payload)
+                    val recvDevId = recvJson.optString("DeviceID", "")
+                    if (recvDevId.contains('_')) {
+                        val recvPrefix = recvDevId.substringBefore('_')
+                        val storedId = prefs.getString("device_id", "001_V1.1.0") ?: "001_V1.1.0"
+                        val storedPrefix = storedId.substringBefore('_')
+                        if (recvPrefix == storedPrefix && recvDevId != storedId) {
+                            prefs.edit().putString("device_id", recvDevId).apply()
+                            Log.i(TAG, "设备号版本已自动匹配: $storedId → $recvDevId")
+                        }
+                    }
+                } catch (_: Exception) {}
                 // 收到平台下发的 property/set 指令时，自动回复 set_reply
                 if (topic?.endsWith("thing/service/property/set") == true) {
                     replyToPropertySet(config, payload)
