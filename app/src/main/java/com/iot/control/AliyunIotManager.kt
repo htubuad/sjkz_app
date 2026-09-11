@@ -276,8 +276,15 @@ class AliyunIotManager(private val context: Context) {
                     if (recvDir == "ACK") {
                         val recvDevId = recvJson.optString("DeviceID", "")
                         val label = pendingAckLabel
-                        Log.i(TAG, "收到回执 Dir=ACK deviceId=$recvDevId label=$label pendingId=$pendingAckDeviceId")
-                        if (label != null && (pendingAckDeviceId == null || recvDevId == pendingAckDeviceId)) {
+                        // DeviceID 形如 "001_V1.2.0"，仅按设备号前缀(下划线前)匹配，
+                        // 版本号(V1.x.x)是可变的，不作为匹配标准
+                        val recvPrefix = recvDevId.substringBefore('_', "")
+                        val pendingPrefix = pendingAckDeviceId?.substringBefore('_', "")
+                        val idMatched = pendingAckDeviceId == null ||
+                                pendingPrefix.isNullOrEmpty() ||
+                                recvPrefix == pendingPrefix
+                        Log.i(TAG, "收到回执 Dir=ACK deviceId=$recvDevId prefix=$recvPrefix label=$label pendingId=$pendingAckDeviceId pendingPrefix=$pendingPrefix matched=$idMatched")
+                        if (label != null && idMatched) {
                             pendingAckLabel = null
                             pendingAckDeviceId = null
                             pendingAckTimer?.cancel()
