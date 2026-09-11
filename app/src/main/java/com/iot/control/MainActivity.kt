@@ -169,10 +169,18 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 回执弹窗由 AliyunIotManager 统一显示，这里只记录日志
+        // 回执弹窗由 AliyunIotManager 统一显示，这里记录日志并回读状态刷新 UI
         iotManager.ackListener = { success, label ->
             runOnUiThread {
                 if (success) {
+                    // 从 ACK 回读后的集中状态刷新本地 UI（电源/灯/温度）
+                    val state = iotManager.getDeviceState()
+                    powerOn = state.power
+                    lightOn = state.light
+                    updatePowerUI()
+                    updateLightUI()
+                    // 温度显示：旋钮保持用户设定值，文本提示展示设备回读温度
+                    binding.tvTempValue.text = "当前温度: ${formatTemp(state.temperature)}°C"
                     appendLog("✓ 设备已执行: $label")
                 } else {
                     appendLog("✗ 未收到设备回执: $label (超时)")

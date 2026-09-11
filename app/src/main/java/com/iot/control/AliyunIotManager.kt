@@ -87,6 +87,84 @@ class AliyunIotManager(private val context: Context) {
             .apply()
     }
 
+    /** 保存开关状态到 SharedPreferences（从 ACK 回读后同步持久化） */
+    private fun saveSwitchStatesToPrefs() {
+        val sb = StringBuilder()
+        for (i in 0 until 10) {
+            if (i > 0) sb.append(",")
+            sb.append(if (deviceState.switches[i]) "1" else "0")
+        }
+        prefs.edit().putString("switch_states", sb.toString()).apply()
+    }
+
+    /**
+     * 从 ACK 回执报文中解析设备真实状态并回写到本地集中状态。
+     * 以设备回执的实际状态为准（而非控制端下发时的乐观更新），
+     * 保证 App 显示与设备真实状态一致。
+     *
+     * 字段映射:
+     * - Switches (int 位掩码) → deviceState.switches（switch1=bit0 ... switch10=bit9）
+     * - Temp (double)         → deviceState.temperature
+     * - power (int 0/1)       → deviceState.power（字段存在时才覆盖，缺失则保留原值）
+     * - light (int 0/1)       → deviceState.light（字段存在时才覆盖，缺失则保留原值）
+     */
+    private fun applyStateFromAck(json: org.json.JSONObject) {
+        try {
+            // 开关位掩码
+            if (json.has("Switches")) {
+                val bits = json.optInt("Switches", 0)
+                for (i in 0 until 10) {
+                    deviceState.switches[i] = (bits and (1 shl i)) != 0
+                }
+            }
+            // 温度：优先 Temp，其次 Field1
+            if (json.has("Temp")) {
+                val temp = json.optDouble("Temp", Double.NaN)
+                if (!temp.isNaN()) deviceState.temperature = temp.toFloat()
+            } else if (json.has("Field1")) {
+                val f1 = json.optDouble("Field1", Double.NaN)
+                if (!f1.isNaN()) deviceState.temperature = f1.toFloat()
+            }
+            // 电源（字段存在时才覆盖）
+            if (json.has("power")) {
+                deviceState.power = json.optInt("power", 0) != 0
+            }
+            // 灯（字段存在时才覆盖）
+            if (json.has("light")) {
+                deviceState.light = json.optInt("light", 0) != 0
+            }
+            // 同步发送端去重缓存，避免回读后的值与缓存不一致导致下次同值下发被跳过
+            refreshLastSentValuesFromState()
+            // 持久化
+            savePowerLightToPrefs()
+            saveSwitchStatesToPrefs()
+            Log.i(TAG, "从ACK回读状态: " +
+                    "switches=${deviceState.switches.joinToString("") { if (it) "1" else "0" }} " +
+                    "temp=${deviceState.temperature} " +
+                    "power=${deviceState.power} light=${deviceState.light}")
+        } catch (e: Exception) {
+            Log.w(TAG, "解析ACK状态失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 按当前 deviceState 刷新发送端去重缓存，保证回读后的值与缓存一致，
+     * 避免 ACK 回读改变状态后，再次下发相同值被去重逻辑错误跳过。
+     */
+    private fun refreshLastSentValuesFromState() {
+        // 电源 type=3
+        lastSentValues["3_0"] = if (deviceState.power) "1" else "0"
+        // 灯 type=4
+        lastSentValues["4_0"] = if (deviceState.light) "1" else "0"
+        // 温度 type=2（整数温度以整数形式）
+        val t = deviceState.temperature
+        lastSentValues["2_0"] = if (t == t.toInt().toFloat()) t.toInt().toString() else t.toString()
+        // 开关 type=1（每路）
+        for (i in 0 until 10) {
+            lastSentValues["1_${i + 1}"] = if (deviceState.switches[i]) "1" else "0"
+        }
+    }
+
     /**
      * 标记用户是否主动断开过连接（持久化到 SharedPreferences，App 重启后仍有效）
      * - true: 主动断开过，应用启动时不自动重连，必须用户再次点击连接
@@ -307,6 +385,8 @@ class AliyunIotManager(private val context: Context) {
                             pendingAckDeviceId = null
                             pendingAckTimer?.cancel()
                             pendingAckTimer = null
+                            // 成功后从 ACK 报文回读设备真实状态，更新本地集中状态并持久化
+                            applyStateFromAck(recvJson)
                             // 统一在 manager 显示回执弹窗（任何页面都生效）
                             showAckToast("成功\n$label", true)
                             ackListener?.invoke(true, label)

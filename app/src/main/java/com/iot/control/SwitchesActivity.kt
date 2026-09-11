@@ -38,8 +38,25 @@ class SwitchesActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refreshEnabled()
-        // 回执弹窗由 AliyunIotManager 统一显示，开关页无需注册 ackListener
-        // MainActivity 在其 onResume 时会重新注册 ackListener 用于日志
+        // 收到 ACK 后从集中状态回读开关真实状态并刷新按钮 UI
+        iotManager.ackListener = { success, _ ->
+            if (success) {
+                runOnUiThread { refreshSwitchesFromState() }
+            }
+        }
+        // 进入页面时也以集中状态为准刷新一次（避免与 MainActivity 状态不一致）
+        refreshSwitchesFromState()
+    }
+
+    /** 从 AliyunIotManager 集中状态回读开关状态并刷新所有按钮 UI */
+    private fun refreshSwitchesFromState() {
+        val state = iotManager.getDeviceState()
+        for (i in 0 until 10) {
+            switchStates[i] = state.switches[i]
+        }
+        for (i in 0 until 10) {
+            updateSwitchUI(i)
+        }
     }
 
     private fun setupSwitches() {
