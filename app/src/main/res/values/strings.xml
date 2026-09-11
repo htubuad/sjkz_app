@@ -22,4 +22,17 @@
     <string name="input_required">请填写设备三元组</string>
     <string name="copy_link">复制下载链接</string>
     <string name="download_apk">立即下载 APK</string>
+
+    <string-array name="device_id_options">
+        <item>001_V1.1.0</item>
+        <item>002_V1.1.0</item>
+        <item>003_V1.1.0</item>
+        <item>004_V1.1.0</item>
+        <item>005_V1.1.0</item>
+        <item>006_V1.1.0</item>
+        <item>007_V1.1.0</item>
+        <item>008_V1.1.0</item>
+        <item>009_V1.1.0</item>
+        <item>010_V1.1.0</item>
+    </string-array>
 </resources>

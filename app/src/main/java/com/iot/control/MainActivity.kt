@@ -175,77 +175,61 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 处理自定义 Topic 消息，例如：
-     *  - {"from":"phone","type":"switch","index":1,"value":1}
-     *  - {"from":"phone","type":"switch_all","value":1}
-     *  - {"from":"phone","type":"temperature","value":25.0}
-     *  - {"from":"phone","num":999}
+     * 处理自定义 Topic 消息，支持新标准报文格式：
+     * {"DeviceID":"001_V1.1.0","Flag":"T","power":0,"light":1,"Switches":0,"Field1":0.00,"Field2":0.00}
+     *
+     * Flag 含义: S=单路开关, T=温度, P=电源, L=灯, A=全控
      */
     private fun handleCustomMessage(payload: String) {
         appendLog("收到指令: $payload")
         try {
             val json = JSONObject(payload)
-            val from = json.optString("from", "未知")
-            val type = json.optString("type", "")
-            val index = json.opt("index")
-            val value = json.opt("value")
-            val num = json.opt("num")
 
             // 在参数区域显示
             binding.layoutParams.removeAllViews()
             binding.tvNoData.visibility = android.view.View.GONE
-            // from 字段存在时才显示（避免出现 "from — 未知"）
-            if (from != "未知") {
-                addParamRow("from", from)
-            }
 
-            when {
-                type == "switch" -> {
-                    val idx = index?.toString() ?: "--"
-                    val on = value?.toString() == "1"
-                    appendLog("开关$idx ${if (on) "开启" else "关闭"} (value=$value)")
-                    addParamRow("type", "switch 单控")
-                    addParamRow("index", idx)
-                    addParamRow("value", value?.toString() ?: "--")
+            val deviceId = json.optString("DeviceID", "")
+            val flag = json.optString("Flag", "")
+            val power = json.optInt("power", -1)
+            val light = json.optInt("light", -1)
+            val switches = json.optInt("Switches", -1)
+            val field1 = json.optDouble("Field1", Double.NaN)
+            val field2 = json.optDouble("Field2", Double.NaN)
+
+            // 如果包含新格式的字段，按新格式解析
+            if (deviceId.isNotEmpty() || flag.isNotEmpty()) {
+                addParamRow("DeviceID", deviceId)
+                val flagDesc = when (flag) {
+                    "S" -> "S 单路开关"
+                    "T" -> "T 温度"
+                    "P" -> "P 电源"
+                    "L" -> "L 灯"
+                    "A" -> "A 全控"
+                    else -> flag
                 }
-                type == "switch_all" -> {
-                    val on = value?.toString() == "1"
-                    appendLog("全部开关 ${if (on) "开启" else "关闭"} (value=$value)")
-                    addParamRow("type", "switch_all 全控")
-                    addParamRow("value", value?.toString() ?: "--")
-                }
-                type == "temperature" -> {
-                    // 温度值来自 from 字段（如 {"from":"25.0","type":"temperature"}）
-                    val temp = from.toDoubleOrNull()
-                    val tempStr = if (temp != null) formatTemp(temp.toFloat()) else from
-                    appendLog("温度: ${tempStr}°C")
-                    addParamRow("type", "temperature 温度")
-                    addParamRow("温度", "$tempStr °C")
-                }
-                type == "power" -> {
-                    val on = value?.toString() == "1"
-                    appendLog("电源开关 ${if (on) "开启" else "关闭"} (value=$value)")
-                    addParamRow("type", "power 电源")
-                    addParamRow("value", value?.toString() ?: "--")
-                }
-                type == "light" -> {
-                    val on = value?.toString() == "1"
-                    appendLog("灯开关 ${if (on) "开启" else "关闭"} (value=$value)")
-                    addParamRow("type", "light 灯")
-                    addParamRow("value", value?.toString() ?: "--")
-                }
-                else -> {
-                    // 通用：遍历 JSON 所有字段并显示，温度字段自动带 °C
-                    // （方法顶部已记录"收到指令"日志，此处不再重复）
-                    val keys = json.keys()
-                    while (keys.hasNext()) {
-                        val key = keys.next()
-                        // from 已在上面单独处理，这里跳过避免重复
-                        if (key == "from") continue
-                        val v = json.opt(key)
-                        addParamRow(formatKey(key), formatValue(v, key))
+                addParamRow("Flag", flagDesc)
+                if (power >= 0) addParamRow("power", if (power == 1) "开" else "关")
+                if (light >= 0) addParamRow("light", if (light == 1) "开" else "关")
+                if (switches >= 0) addParamRow("Switches", switches.toString())
+                if (!field1.isNaN()) addParamRow("Field1 (温度)", "${formatTemp(field1.toFloat())} °C")
+                if (!field2.isNaN()) {
+                    val f2Int = field2.toInt()
+                    if (flag == "S" && f2Int in 1..10) {
+                        addParamRow("Field2 (开关序号)", f2Int.toString())
+                    } else {
+                        addParamRow("Field2", "%.2f".format(field2))
                     }
                 }
+                return
+            }
+
+            // 兼容旧格式：遍历 JSON 所有字段并显示
+            val keys = json.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                val v = json.opt(key)
+                addParamRow(formatKey(key), formatValue(v, key))
             }
         } catch (e: Exception) {
             appendLog("解析失败: ${e.message}")

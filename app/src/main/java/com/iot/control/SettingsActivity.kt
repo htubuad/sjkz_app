@@ -5,6 +5,8 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.iot.control.databinding.ActivitySettingsBinding
@@ -24,9 +26,31 @@ class SettingsActivity : AppCompatActivity() {
         iotManager = (application as IoTApp).iotManager
 
         loadSavedConfig()
+        setupDeviceIdSpinner()
         setupListeners()
         refreshStatus()
         showVersion()
+    }
+
+    private fun setupDeviceIdSpinner() {
+        val options = resources.getStringArray(R.array.device_id_options)
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, options)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        binding.spinnerDeviceId.adapter = adapter
+
+        // 恢复已保存的 DeviceID 选择
+        val savedId = prefs.getString("device_id", "001_V1.1.0") ?: "001_V1.1.0"
+        val pos = options.indexOf(savedId)
+        binding.spinnerDeviceId.setSelection(if (pos >= 0) pos else 0)
+
+        // 选择变化时保存
+        binding.spinnerDeviceId.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                val selected = options[position]
+                prefs.edit().putString("device_id", selected).apply()
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
     }
 
     private fun setupListeners() {

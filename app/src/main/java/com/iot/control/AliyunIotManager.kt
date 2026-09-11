@@ -286,13 +286,18 @@ class AliyunIotManager(private val context: Context) {
         "/${config.productKey}/${config.deviceName}/user/update"
 
     /**
-     * 构造自定义 JSON 并发布到 /user/update Topic
-     * 格式: {"type":<typeCode>[,"index":<index>],"value":<value>,
-     *        "temperature":<t>,"power":<p>,"light":<l>,"switches":[...]}
-     * - 省略 from 字段（恒为 1，无需发送）
-     * - index 为 0 时省略
-     * - 除本次操作的 type/index/value 外，还附带温度、电源、灯及全部 10 路开关的当前值
-     * - 仅当值与上次下发不同时才发送，避免重复下发相同值
+     * 构造标准报文并发布到 /user/update Topic
+     * 标准格式: {"DeviceID":"001_V1.1.0","Flag":"T","power":0,"light":1,"Switches":0,"Field1":0.00,"Field2":0.00}
+     *
+     * 字段说明:
+     * - DeviceID: 从设置页选项卡选择的设备ID（如 001_V1.1.0）
+     * - Flag: 操作类型标识（S=单路开关, T=温度, P=电源, L=灯, A=全控）
+     * - power: 电源状态 0/1
+     * - light: 灯状态 0/1
+     * - Switches: 10路开关位掩码（整数），switch 1 = bit 0 (LSB)，switch 10 = bit 9
+     * - Field1: 温度值（2位小数）
+     * - Field2: 开关序号（单路开关时为 1~10，其他操作为 0.00）
+     *
      * type 编码: 1=switch 单路开关, 2=temperature 温度, 3=power 电源, 4=light 灯, 5=switch_all 全控
      */
     private fun publishCustomJson(config: DeviceConfig, typeCode: Int, value: Number, index: Int = 0, label: String) {
@@ -315,32 +320,33 @@ class AliyunIotManager(private val context: Context) {
         }
 
         val topic = customTopic(config)
-        val indexPart = if (index > 0) ""","index":$index""" else ""
 
-        // 附带全部参数当前值，构成完整状态快照
-        // 对于 type=2/3/4（温度/电源/灯），命名字段已表达操作值，故省略通用的 value 字段，
-        // 避免重复（如不再出现 "value":23,"temperature":23）。
-        // 对于 type=1/5（开关），保留 value+index 供设备识别具体操作。
-        val tempVal: Number = if (deviceState.temperature == deviceState.temperature.toInt().toFloat())
-            deviceState.temperature.toInt() else deviceState.temperature
-        // 10 路开关按位打包为十六进制字符串：switch 1 = bit 0 (LSB)，switch 10 = bit 9
+        // DeviceID 从设置页选项卡选择
+        val deviceId = prefs.getString("device_id", "001_V1.1.0") ?: "001_V1.1.0"
+
+        // Flag 根据操作类型设置
+        val flag = when (typeCode) {
+            1 -> "S"   // 单路开关
+            2 -> "T"   // 温度
+            3 -> "P"   // 电源
+            4 -> "L"   // 灯
+            5 -> "A"   // 全控
+            else -> "T"
+        }
+
+        // 10 路开关按位打包为整数：switch 1 = bit 0 (LSB)，switch 10 = bit 9
         var switchBits = 0
         for (i in 0 until 10) {
             if (deviceState.switches[i]) switchBits = switchBits or (1 shl i)
         }
-        val switchesHex = "0x%X".format(switchBits)
 
-        val parts = mutableListOf<String>()
-        parts.add(""""temperature":$tempVal""")
-        parts.add(""""power":${if (deviceState.power) 1 else 0}""")
-        parts.add(""""light":${if (deviceState.light) 1 else 0}""")
-        parts.add(""""switches":"$switchesHex"""")
-        val statePart = parts.joinToString(",")
+        // Field1 = 温度（2位小数）
+        val field1 = "%.2f".format(deviceState.temperature)
 
-        // type 2/3/4 用命名字段表达操作值，省略通用 value；type 1/5 保留 value
-        val valuePart = if (typeCode in 2..4) "" else ""","value":$value"""
+        // Field2 = 单路开关时为序号，其他为 0.00
+        val field2 = if (typeCode == 1 && index > 0) "%.2f".format(index.toFloat()) else "0.00"
 
-        val payload = """{"type":$typeCode$indexPart$valuePart,$statePart}"""
+        val payload = """{"DeviceID":"$deviceId","Flag":"$flag","power":${if (deviceState.power) 1 else 0},"light":${if (deviceState.light) 1 else 0},"Switches":$switchBits,"Field1":$field1,"Field2":$field2}"""
 
         Thread {
             try {
