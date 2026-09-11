@@ -173,11 +173,11 @@ class MainActivity : AppCompatActivity() {
             runOnUiThread {
                 if (success) {
                     // 收到设备回执，弹窗显示发送成功并自动消失（加大字体+绿色背景）
-                    showAckToast("✓ 发送成功\n$label", success = true)
+                    showAckToast("成功\n$label", success = true)
                     appendLog("✓ 设备已执行: $label")
                 } else {
                     // 超时未收到回执，弹窗提示失败（加大字体+红色背景）
-                    showAckToast("✗ 未收到回执\n$label", success = false)
+                    showAckToast("失败\n$label", success = false)
                     appendLog("✗ 未收到设备回执: $label (超时)")
                 }
             }
