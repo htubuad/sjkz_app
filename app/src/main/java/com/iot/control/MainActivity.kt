@@ -181,7 +181,10 @@ class MainActivity : AppCompatActivity() {
                     updateLightUI()
                     // 温度显示：旋钮保持用户设定值，文本提示展示设备回读温度
                     binding.tvTempValue.text = "当前温度: ${formatTemp(state.temperature)}°C"
-                    appendLog("✓ 设备已执行: $label")
+                    // 仅对待确认命令的回执写日志，设备主动上报的"状态同步"不刷屏
+                    if (label != "状态同步") {
+                        appendLog("✓ 设备已执行: $label")
+                    }
                 } else {
                     appendLog("✗ 未收到设备回执: $label (超时)")
                 }

@@ -102,36 +102,37 @@ class AliyunIotManager(private val context: Context) {
      * 以设备回执的实际状态为准（而非控制端下发时的乐观更新），
      * 保证 App 显示与设备真实状态一致。
      *
-     * 字段映射:
+     * 字段映射（字段名大小写不敏感）:
      * - Switches (int 位掩码) → deviceState.switches（switch1=bit0 ... switch10=bit9）
      * - Temp (double)         → deviceState.temperature
-     * - power (int 0/1)       → deviceState.power（字段存在时才覆盖，缺失则保留原值）
-     * - light (int 0/1)       → deviceState.light（字段存在时才覆盖，缺失则保留原值）
+     * - power (0/1 或 true/false) → deviceState.power
+     * - light (0/1 或 true/false) → deviceState.light
      */
     private fun applyStateFromAck(json: org.json.JSONObject) {
         try {
             // 开关位掩码
-            if (json.has("Switches")) {
-                val bits = json.optInt("Switches", 0)
+            val switchesVal = optIgnoreCase(json, "Switches")
+            if (switchesVal != null) {
+                val bits = toInt(switchesVal)
                 for (i in 0 until 10) {
                     deviceState.switches[i] = (bits and (1 shl i)) != 0
                 }
             }
             // 温度：优先 Temp，其次 Field1
-            if (json.has("Temp")) {
-                val temp = json.optDouble("Temp", Double.NaN)
+            val tempVal = optIgnoreCase(json, "Temp") ?: optIgnoreCase(json, "Field1")
+            if (tempVal != null) {
+                val temp = toDouble(tempVal)
                 if (!temp.isNaN()) deviceState.temperature = temp.toFloat()
-            } else if (json.has("Field1")) {
-                val f1 = json.optDouble("Field1", Double.NaN)
-                if (!f1.isNaN()) deviceState.temperature = f1.toFloat()
             }
             // 电源（字段存在时才覆盖）
-            if (json.has("power")) {
-                deviceState.power = json.optInt("power", 0) != 0
+            val powerVal = optIgnoreCase(json, "power")
+            if (powerVal != null) {
+                deviceState.power = toBool(powerVal)
             }
             // 灯（字段存在时才覆盖）
-            if (json.has("light")) {
-                deviceState.light = json.optInt("light", 0) != 0
+            val lightVal = optIgnoreCase(json, "light")
+            if (lightVal != null) {
+                deviceState.light = toBool(lightVal)
             }
             // 同步发送端去重缓存，避免回读后的值与缓存不一致导致下次同值下发被跳过
             refreshLastSentValuesFromState()
@@ -145,6 +146,41 @@ class AliyunIotManager(private val context: Context) {
         } catch (e: Exception) {
             Log.w(TAG, "解析ACK状态失败: ${e.message}")
         }
+    }
+
+    /** 按大小写不敏感的方式取 JSON 字段值 */
+    private fun optIgnoreCase(json: org.json.JSONObject, key: String): Any? {
+        if (json.has(key)) return json.opt(key)
+        val keys = json.keys()
+        while (keys.hasNext()) {
+            val k = keys.next()
+            if (k.equals(key, ignoreCase = true)) return json.opt(k)
+        }
+        return null
+    }
+
+    /** 把 JSON 值转为 Int（兼容数字、字符串） */
+    private fun toInt(value: Any): Int = when (value) {
+        is Number -> value.toInt()
+        is String -> value.toIntOrNull() ?: 0
+        is Boolean -> if (value) 1 else 0
+        else -> 0
+    }
+
+    /** 把 JSON 值转为 Double（兼容数字、字符串） */
+    private fun toDouble(value: Any): Double = when (value) {
+        is Number -> value.toDouble()
+        is String -> value.toDoubleOrNull() ?: Double.NaN
+        is Boolean -> if (value) 1.0 else 0.0
+        else -> Double.NaN
+    }
+
+    /** 把 JSON 值转为 Boolean（兼容 0/1、"0"/"1"、true/false） */
+    private fun toBool(value: Any): Boolean = when (value) {
+        is Boolean -> value
+        is Number -> value.toInt() != 0
+        is String -> value == "1" || value.equals("true", ignoreCase = true)
+        else -> false
     }
 
     /**
@@ -371,25 +407,34 @@ class AliyunIotManager(private val context: Context) {
                     val recvDir = recvJson.optString("Dir", "")
                     if (recvDir == "ACK") {
                         val recvDevId = recvJson.optString("DeviceID", "")
-                        val label = pendingAckLabel
-                        // DeviceID 形如 "001_V1.2.0"，仅按设备号前缀(下划线前)匹配，
-                        // 版本号(V1.x.x)是可变的，不作为匹配标准
                         val recvPrefix = recvDevId.substringBefore('_', "")
+                        // 以已保存的设备号前缀判断是否本设备的 ACK
+                        val storedId = prefs.getString("device_id", "001_V1.1.0") ?: "001_V1.1.0"
+                        val storedPrefix = storedId.substringBefore('_')
+                        val isMyDevice = recvPrefix.isEmpty() || recvPrefix == storedPrefix
+                        // 只要是本设备的 ACK，无论是否有待确认命令，都回读设备真实状态
+                        // （覆盖 ACK 晚到/设备主动上报等场景）
+                        if (isMyDevice) {
+                            applyStateFromAck(recvJson)
+                        }
+                        // 有待确认的命令时才显示回执弹窗
+                        val label = pendingAckLabel
                         val pendingPrefix = pendingAckDeviceId?.substringBefore('_', "")
                         val idMatched = pendingAckDeviceId == null ||
                                 pendingPrefix.isNullOrEmpty() ||
                                 recvPrefix == pendingPrefix
-                        Log.i(TAG, "收到回执 Dir=ACK deviceId=$recvDevId prefix=$recvPrefix label=$label pendingId=$pendingAckDeviceId pendingPrefix=$pendingPrefix matched=$idMatched")
+                        Log.i(TAG, "收到回执 Dir=ACK deviceId=$recvDevId prefix=$recvPrefix label=$label pendingId=$pendingAckDeviceId pendingPrefix=$pendingPrefix matched=$idMatched isMyDevice=$isMyDevice")
                         if (label != null && idMatched) {
                             pendingAckLabel = null
                             pendingAckDeviceId = null
                             pendingAckTimer?.cancel()
                             pendingAckTimer = null
-                            // 成功后从 ACK 报文回读设备真实状态，更新本地集中状态并持久化
-                            applyStateFromAck(recvJson)
                             // 统一在 manager 显示回执弹窗（任何页面都生效）
                             showAckToast("成功\n$label", true)
-                            ackListener?.invoke(true, label)
+                        }
+                        // 只要本设备状态被回读，就通知 UI 刷新按键（含无待确认命令的主动上报 ACK）
+                        if (isMyDevice) {
+                            ackListener?.invoke(true, label ?: "状态同步")
                         }
                     }
                 } catch (_: Exception) {}
