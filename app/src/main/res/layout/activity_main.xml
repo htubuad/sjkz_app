@@ -317,8 +317,8 @@
                     android:minLines="3"
                     android:maxLines="6"
                     android:gravity="top|start"
-                    android:hint='{"DeviceID":"001_V1.1.0","方向":"C>D","power":0,"light":1,"Switches":0,"Field1":0.00,"Field2":0.00}'
-                    android:text='{"DeviceID":"001_V1.1.0","方向":"C>D","power":0,"light":1,"Switches":0,"Field1":0.00,"Field2":0.00}'
+                    android:hint='{"DeviceID":"001_V1.1.0","Dir":"C>D","power":0,"light":1,"Switches":0,"Field1":0.00,"Field2":0.00}'
+                    android:text='{"DeviceID":"001_V1.1.0","Dir":"C>D","power":0,"light":1,"Switches":0,"Field1":0.00,"Field2":0.00}'
                     android:textSize="14sp"
                     android:fontFamily="monospace"
                     android:inputType="textMultiLine|textNoSuggestions"
