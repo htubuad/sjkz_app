@@ -151,7 +151,7 @@ class AliyunIotManager(private val context: Context) {
                 toastView.findViewById<android.view.View>(R.id.toastContainer)
                     .setBackgroundResource(if (success) R.drawable.toast_bg_success else R.drawable.toast_bg_fail)
                 Toast(context).apply {
-                    duration = Toast.LENGTH_LONG
+                    duration = Toast.LENGTH_SHORT
                     view = toastView
                     // 靠下显示，避免遮挡屏幕中央内容
                     val yOffset = (120 * context.resources.displayMetrics.density).toInt()
