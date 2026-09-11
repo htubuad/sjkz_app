@@ -175,8 +175,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 处理自定义 Topic 消息，支持新标准报文格式：
-     * {"DeviceID":"001_V1.1.0","Flag":"T","power":0,"light":1,"Switches":0,"Field1":0.00,"Field2":0.00}
+     * 处理自定义 Topic 消息，支持标准接收报文格式：
+     * {"DeviceID":"001_V1.1.0","Flag":"T","Temp":46.4,"RSSI":-61,"Switches":0,"Field1":0.00,"Field2":0.00}
      *
      * Flag 含义: S=单路开关, T=温度, P=电源, L=灯, A=全控
      */
@@ -191,13 +191,8 @@ class MainActivity : AppCompatActivity() {
 
             val deviceId = json.optString("DeviceID", "")
             val flag = json.optString("Flag", "")
-            val power = json.optInt("power", -1)
-            val light = json.optInt("light", -1)
-            val switches = json.optInt("Switches", -1)
-            val field1 = json.optDouble("Field1", Double.NaN)
-            val field2 = json.optDouble("Field2", Double.NaN)
 
-            // 如果包含新格式的字段，按新格式解析
+            // 如果包含标准格式字段，按标准格式解析
             if (deviceId.isNotEmpty() || flag.isNotEmpty()) {
                 addParamRow("DeviceID", deviceId)
                 val flagDesc = when (flag) {
@@ -209,18 +204,27 @@ class MainActivity : AppCompatActivity() {
                     else -> flag
                 }
                 addParamRow("Flag", flagDesc)
-                if (power >= 0) addParamRow("power", if (power == 1) "开" else "关")
-                if (light >= 0) addParamRow("light", if (light == 1) "开" else "关")
-                if (switches >= 0) addParamRow("Switches", switches.toString())
-                if (!field1.isNaN()) addParamRow("Field1 (温度)", "${formatTemp(field1.toFloat())} °C")
-                if (!field2.isNaN()) {
-                    val f2Int = field2.toInt()
-                    if (flag == "S" && f2Int in 1..10) {
-                        addParamRow("Field2 (开关序号)", f2Int.toString())
-                    } else {
-                        addParamRow("Field2", "%.2f".format(field2))
-                    }
-                }
+
+                // Temp 温度（接收报文专用字段）
+                val temp = json.optDouble("Temp", Double.NaN)
+                if (!temp.isNaN()) addParamRow("Temp (温度)", "${formatTemp(temp.toFloat())} °C")
+
+                // RSSI 信号强度
+                val rssi = json.optInt("RSSI", Int.MIN_VALUE)
+                if (rssi != Int.MIN_VALUE) addParamRow("RSSI (信号)", "$rssi dBm")
+
+                // Switches 开关位掩码
+                val switches = json.optInt("Switches", Int.MIN_VALUE)
+                if (switches != Int.MIN_VALUE) addParamRow("Switches", switches.toString())
+
+                // Field1
+                val field1 = json.optDouble("Field1", Double.NaN)
+                if (!field1.isNaN()) addParamRow("Field1", "%.2f".format(field1))
+
+                // Field2
+                val field2 = json.optDouble("Field2", Double.NaN)
+                if (!field2.isNaN()) addParamRow("Field2", "%.2f".format(field2))
+
                 return
             }
 
