@@ -4,7 +4,6 @@ import android.content.SharedPreferences
 import android.os.Bundle
 import android.view.Gravity
 import android.widget.Button
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.gridlayout.widget.GridLayout
 import com.iot.control.databinding.ActivitySwitchesBinding
@@ -67,11 +66,7 @@ class SwitchesActivity : AppCompatActivity() {
                     updateSwitchUI(idx)
                     saveSwitchStates()
                     iotManager.setSwitch(getSavedConfig(), i, switchStates[idx])
-                    Toast.makeText(
-                        this@SwitchesActivity,
-                        "开关$i ${if (switchStates[idx]) "开启" else "关闭"}",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    // 回执弹窗由 AliyunIotManager 统一显示（收到 Dir=ACK 弹绿色成功）
                 }
             }
             val params = GridLayout.LayoutParams().apply {
@@ -138,11 +133,7 @@ class SwitchesActivity : AppCompatActivity() {
         for (i in 0 until 10) updateSwitchUI(i)
         saveSwitchStates()
         iotManager.setAllSwitches(getSavedConfig(), on)
-        Toast.makeText(
-            this,
-            if (on) "已全部开启" else "已全部关闭",
-            Toast.LENGTH_SHORT
-        ).show()
+        // 回执弹窗由 AliyunIotManager 统一显示（收到 Dir=ACK 弹绿色成功）
     }
 
     private fun getSavedConfig(): AliyunIotManager.DeviceConfig {
