@@ -123,7 +123,7 @@ class AliyunIotManager(private val context: Context) {
     var messageListener: ((String, String) -> Unit)? = null
     /** 发送监听：控制端下发成功后触发 (topic, payload)，便于 UI 显示原始报文 */
     var sentPayloadListener: ((String, String) -> Unit)? = null
-    /** 回执监听：设备返回 Flag="P" 时触发 (success, label) */
+    /** 回执监听：设备返回 方向="回执" 时触发 (success, label) */
     var ackListener: ((Boolean, String) -> Unit)? = null
 
     // 待确认回执的命令信息
@@ -240,11 +240,11 @@ class AliyunIotManager(private val context: Context) {
                 if (topic?.endsWith("thing/service/property/set") == true) {
                     replyToPropertySet(config, payload)
                 }
-                // 检测回执报文（Flag="P"）
+                // 检测回执报文（方向="ACK"）
                 try {
                     val recvJson = org.json.JSONObject(payload)
-                    val recvFlag = recvJson.optString("Flag", "")
-                    if (recvFlag == "P") {
+                    val recvDir = recvJson.optString("方向", "")
+                    if (recvDir == "ACK") {
                         val recvDevId = recvJson.optString("DeviceID", "")
                         val label = pendingAckLabel
                         if (label != null && (pendingAckDeviceId == null || recvDevId == pendingAckDeviceId)) {
@@ -314,11 +314,11 @@ class AliyunIotManager(private val context: Context) {
 
     /**
      * 构造标准报文并发布到 /user/update Topic
-     * 标准格式: {"DeviceID":"001_V1.1.0","Flag":"T","power":0,"light":1,"Switches":0,"Field1":0.00,"Field2":0.00}
+     * 标准格式: {"DeviceID":"001_V1.1.0","方向":"C>D","power":0,"light":1,"Switches":0,"Field1":0.00,"Field2":0.00}
      *
      * 字段说明:
      * - DeviceID: 从设置页选项卡选择的设备ID（如 001_V1.1.0）
-     * - Flag: 报文方向标识（控制端视角：T=控制端发送, R=控制端接收(设备发送), P=回执）
+     * - 方向: 报文方向（C>D=控制端发送, D>C=设备发送, ACK=回执）
      * - power: 电源状态 0/1
      * - light: 灯状态 0/1
      * - Switches: 10路开关位掩码（整数），switch 1 = bit 0 (LSB)，switch 10 = bit 9
@@ -351,8 +351,8 @@ class AliyunIotManager(private val context: Context) {
         // DeviceID 从设置页选项卡选择
         val deviceId = prefs.getString("device_id", "001_V1.1.0") ?: "001_V1.1.0"
 
-        // Flag=T 表示控制端发送（设备端接收）
-        val flag = "T"
+        // 方向=C>D 表示控制端发送到设备端
+        val direction = "C>D"
 
         // 10 路开关按位打包为整数：switch 1 = bit 0 (LSB)，switch 10 = bit 9
         var switchBits = 0
@@ -366,7 +366,7 @@ class AliyunIotManager(private val context: Context) {
         // Field2 = 单路开关时为序号，其他为 0.00
         val field2 = if (typeCode == 1 && index > 0) "%.2f".format(index.toFloat()) else "0.00"
 
-        val payload = """{"DeviceID":"$deviceId","Flag":"$flag","power":${if (deviceState.power) 1 else 0},"light":${if (deviceState.light) 1 else 0},"Switches":$switchBits,"Field1":$field1,"Field2":$field2}"""
+        val payload = """{"DeviceID":"$deviceId","方向":"$direction","power":${if (deviceState.power) 1 else 0},"light":${if (deviceState.light) 1 else 0},"Switches":$switchBits,"Field1":$field1,"Field2":$field2}"""
 
         Thread {
             try {

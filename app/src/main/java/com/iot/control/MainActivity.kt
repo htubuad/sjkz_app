@@ -133,7 +133,7 @@ class MainActivity : AppCompatActivity() {
             appendLog("发送 → $topic : $payload")
         }
         binding.btnFillTemplate.setOnClickListener {
-            binding.etCustomPayload.setText("{\"DeviceID\":\"001_V1.1.0\",\"Flag\":\"T\",\"power\":0,\"light\":1,\"Switches\":0,\"Field1\":0.00,\"Field2\":0.00}")
+            binding.etCustomPayload.setText("{\"DeviceID\":\"001_V1.1.0\",\"方向\":\"C>D\",\"power\":0,\"light\":1,\"Switches\":0,\"Field1\":0.00,\"Field2\":0.00}")
             binding.etCustomPayload.setSelection(binding.etCustomPayload.text.length)
             Toast.makeText(this, "已填入默认模板", Toast.LENGTH_SHORT).show()
         }
@@ -194,9 +194,9 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * 处理自定义 Topic 消息，支持标准接收报文格式：
-     * {"DeviceID":"001_V1.1.0","Flag":"R","Temp":46.4,"RSSI":-61,"Switches":0,"Field1":0.00,"Field2":0.00}
+     * {"DeviceID":"001_V1.1.0","方向":"D>C","Temp":46.4,"RSSI":-61,"Switches":0,"Field1":0.00,"Field2":0.00}
      *
-     * Flag 含义（控制端视角）: T=控制端发送, R=控制端接收(设备发送), P=回执
+     * 方向 含义: C>D=控制端发送, D>C=设备发送, ACK=回执
      */
     private fun handleCustomMessage(payload: String) {
         appendLog("收到指令: $payload")
@@ -208,18 +208,13 @@ class MainActivity : AppCompatActivity() {
             binding.tvNoData.visibility = android.view.View.GONE
 
             val deviceId = json.optString("DeviceID", "")
-            val flag = json.optString("Flag", "")
+            // 兼容旧字段 Flag 与新字段 方向
+            val direction = json.optString("方向", json.optString("Flag", ""))
 
             // 如果包含标准格式字段，按标准格式解析
-            if (deviceId.isNotEmpty() || flag.isNotEmpty()) {
+            if (deviceId.isNotEmpty() || direction.isNotEmpty()) {
                 addParamRow("DeviceID", deviceId)
-                val flagDesc = when (flag) {
-                    "T" -> "T 控制端发送"
-                    "R" -> "R 控制端接收"
-                    "P" -> "P 回执"
-                    else -> flag
-                }
-                addParamRow("Flag", flagDesc)
+                addParamRow("方向", direction)
 
                 // Temp 温度（接收报文专用字段）
                 val temp = json.optDouble("Temp", Double.NaN)
