@@ -138,21 +138,27 @@ class AliyunIotManager(private val context: Context) {
      * 显示回执弹窗（统一用 Application context，任何页面都能显示）
      * - success: 绿色背景 + 成功
      * - fail:    红色背景 + 失败
+     * 必须在主线程创建并显示 Toast（带自定义 view 时尤为关键），
+     * 因此用 Handler 投递到主 Looper。
      */
     private fun showAckToast(text: String, success: Boolean) {
-        try {
-            val toastView = android.view.LayoutInflater.from(context)
-                .inflate(R.layout.toast_ack, null)
-            toastView.findViewById<android.widget.TextView>(R.id.tvToastText).text = text
-            toastView.findViewById<android.view.View>(R.id.toastContainer)
-                .setBackgroundResource(if (success) R.drawable.toast_bg_success else R.drawable.toast_bg_fail)
-            Toast(context).apply {
-                duration = Toast.LENGTH_SHORT
-                view = toastView
-                setGravity(android.view.Gravity.CENTER, 0, 0)
-            }.show()
-        } catch (e: Exception) {
-            Log.w(TAG, "显示回执弹窗失败: ${e.message}")
+        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        mainHandler.post {
+            try {
+                val toastView = android.view.LayoutInflater.from(context)
+                    .inflate(R.layout.toast_ack, null)
+                toastView.findViewById<android.widget.TextView>(R.id.tvToastText).text = text
+                toastView.findViewById<android.view.View>(R.id.toastContainer)
+                    .setBackgroundResource(if (success) R.drawable.toast_bg_success else R.drawable.toast_bg_fail)
+                Toast(context).apply {
+                    duration = Toast.LENGTH_LONG
+                    view = toastView
+                    setGravity(android.view.Gravity.CENTER, 0, 0)
+                }.show()
+                Log.i(TAG, "回执弹窗已显示: $text")
+            } catch (e: Exception) {
+                Log.w(TAG, "显示回执弹窗失败: ${e.message}")
+            }
         }
     }
 
@@ -270,6 +276,7 @@ class AliyunIotManager(private val context: Context) {
                     if (recvDir == "ACK") {
                         val recvDevId = recvJson.optString("DeviceID", "")
                         val label = pendingAckLabel
+                        Log.i(TAG, "收到回执 Dir=ACK deviceId=$recvDevId label=$label pendingId=$pendingAckDeviceId")
                         if (label != null && (pendingAckDeviceId == null || recvDevId == pendingAckDeviceId)) {
                             pendingAckLabel = null
                             pendingAckDeviceId = null
