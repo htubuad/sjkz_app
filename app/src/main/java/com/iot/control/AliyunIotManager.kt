@@ -49,6 +49,7 @@ class AliyunIotManager(private val context: Context) {
         var temperature: Float = 25f,
         var power: Boolean = false,
         var light: Boolean = false,
+        var setPoint: Float = 0f,
         val switches: BooleanArray = BooleanArray(10) { false }
     )
 
@@ -87,6 +88,16 @@ class AliyunIotManager(private val context: Context) {
             .apply()
     }
 
+    /** 从 SharedPreferences 恢复设定值 */
+    fun restoreSetPointFromPrefs() {
+        deviceState.setPoint = prefs.getFloat("set_point", 0f)
+    }
+
+    /** 保存设定值到 SharedPreferences */
+    private fun saveSetPointToPrefs() {
+        prefs.edit().putFloat("set_point", deviceState.setPoint).apply()
+    }
+
     /** 保存开关状态到 SharedPreferences（从 ACK 回读后同步持久化） */
     private fun saveSwitchStatesToPrefs() {
         val sb = StringBuilder()
@@ -105,6 +116,8 @@ class AliyunIotManager(private val context: Context) {
      * 字段映射（字段名大小写不敏感）:
      * - Switches (int 位掩码) → deviceState.switches（switch1=bit0 ... switch10=bit9）
      * - Temp (double)         → deviceState.temperature
+     * - Field1 (double)       → deviceState.temperature（设定温度，非零时优先）
+     * - Field2 (double)       → deviceState.setPoint（设定值）
      * - power (0/1 或 true/false) → deviceState.power
      * - light (0/1 或 true/false) → deviceState.light
      */
@@ -139,14 +152,22 @@ class AliyunIotManager(private val context: Context) {
             if (lightVal != null) {
                 deviceState.light = toBool(lightVal)
             }
+            // 设定值 Field2
+            val field2Val = optIgnoreCase(json, "Field2")
+            if (field2Val != null) {
+                val f2 = toDouble(field2Val)
+                if (!f2.isNaN()) deviceState.setPoint = f2.toFloat()
+            }
             // 同步发送端去重缓存，避免回读后的值与缓存不一致导致下次同值下发被跳过
             refreshLastSentValuesFromState()
             // 持久化
             savePowerLightToPrefs()
             saveSwitchStatesToPrefs()
+            saveSetPointToPrefs()
             Log.i(TAG, "从ACK回读状态: " +
                     "switches=${deviceState.switches.joinToString("") { if (it) "1" else "0" }} " +
                     "temp=${deviceState.temperature} " +
+                    "setPoint=${deviceState.setPoint} " +
                     "power=${deviceState.power} light=${deviceState.light}")
         } catch (e: Exception) {
             Log.w(TAG, "解析ACK状态失败: ${e.message}")
@@ -200,6 +221,9 @@ class AliyunIotManager(private val context: Context) {
         // 温度 type=2（整数温度以整数形式）
         val t = deviceState.temperature
         lastSentValues["2_0"] = if (t == t.toInt().toFloat()) t.toInt().toString() else t.toString()
+        // 设定值 type=6
+        val sp = deviceState.setPoint
+        lastSentValues["6_0"] = if (sp == sp.toInt().toFloat()) sp.toInt().toString() else sp.toString()
         // 开关 type=1（每路）
         for (i in 0 until 10) {
             lastSentValues["1_${i + 1}"] = if (deviceState.switches[i]) "1" else "0"
@@ -220,6 +244,7 @@ class AliyunIotManager(private val context: Context) {
         // 启动时从 SharedPreferences 恢复状态到集中状态
         restoreSwitchStatesFromPrefs()
         restorePowerLightFromPrefs()
+        restoreSetPointFromPrefs()
     }
 
     fun isManualDisconnected(): Boolean = prefs.getBoolean("user_manual_disconnect", false)
@@ -510,9 +535,9 @@ class AliyunIotManager(private val context: Context) {
      * - light: 灯状态 0/1
      * - Switches: 10路开关位掩码（整数），switch 1 = bit 0 (LSB)，switch 10 = bit 9
      * - Field1: 温度值（2位小数）
-     * - Field2: 开关序号（单路开关时为 1~10，其他操作为 0.00）
+     * - Field2: 单路开关时为序号(1~10)，其他操作为设定值(setPoint)
      *
-     * type 编码: 1=switch 单路开关, 2=temperature 温度, 3=power 电源, 4=light 灯, 5=switch_all 全控
+     * type 编码: 1=switch 单路开关, 2=temperature 温度, 3=power 电源, 4=light 灯, 5=switch_all 全控, 6=setPoint 设定值
      */
     private fun publishCustomJson(config: DeviceConfig, typeCode: Int, value: Number, index: Int = 0, label: String) {
         val client = mqttClient ?: run {
@@ -550,8 +575,8 @@ class AliyunIotManager(private val context: Context) {
         // Field1 = 温度（2位小数）
         val field1 = "%.2f".format(deviceState.temperature)
 
-        // Field2 = 单路开关时为序号，其他为 0.00
-        val field2 = if (typeCode == 1 && index > 0) "%.2f".format(index.toFloat()) else "0.00"
+        // Field2 = 单路开关时为序号，其他操作为设定值(setPoint)
+        val field2 = if (typeCode == 1 && index > 0) "%.2f".format(index.toFloat()) else "%.2f".format(deviceState.setPoint)
 
         val payload = """{"DeviceID":"$deviceId","Dir":"$direction","power":${if (deviceState.power) 1 else 0},"light":${if (deviceState.light) 1 else 0},"Switches":$switchBits,"Field1":$field1,"Field2":$field2}"""
 
@@ -640,6 +665,19 @@ class AliyunIotManager(private val context: Context) {
         for (i in 0 until 10) deviceState.switches[i] = on
         val value = if (on) 1 else 0
         publishCustomJson(config, 5, value, label = "一键${if (on) "开启" else "关闭"}全部开关")
+    }
+
+    /**
+     * 设置设定值（自定义格式下发）type=6
+     * 下发报文中 Field2 = 设定值
+     * @param value 设定值（浮点数）
+     */
+    fun setSetPoint(config: DeviceConfig, value: Float) {
+        deviceState.setPoint = value
+        saveSetPointToPrefs()
+        // 整数以整数形式下发（38.0 → 38）
+        val numValue: Number = if (value == value.toInt().toFloat()) value.toInt() else value
+        publishCustomJson(config, 6, numValue, label = "设定值 $value")
     }
 
     /**

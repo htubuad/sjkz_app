@@ -222,6 +222,112 @@
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- 设定值卡片（可折叠） -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardSetPoint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp"
+            android:layout_marginBottom="16dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <!-- 标题行（可点击折叠/展开） -->
+                <LinearLayout
+                    android:id="@+id/layoutSetPointHeader"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <TextView
+                        android:id="@+id/tvSetPointTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="🎯 设定值"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/gray_800" />
+
+                    <TextView
+                        android:id="@+id/tvSetPointArrow"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="›"
+                        android:textSize="28sp"
+                        android:textColor="@color/gray_400" />
+                </LinearLayout>
+
+                <!-- 可折叠内容 -->
+                <LinearLayout
+                    android:id="@+id/layoutSetPointContent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:id="@+id/tvSetPointValue"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="当前设定值: 0.00"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/blue_600"
+                        android:gravity="center"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginBottom="12dp" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <EditText
+                            android:id="@+id/etSetPoint"
+                            android:layout_width="0dp"
+                            android:layout_height="48dp"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="8dp"
+                            android:hint="输入浮点数"
+                            android:textSize="16sp"
+                            android:inputType="numberDecimal|numberSigned"
+                            android:background="@drawable/edit_bg"
+                            android:padding="12dp"
+                            android:gravity="center" />
+
+                        <Button
+                            android:id="@+id/btnSetPointConfirm"
+                            android:layout_width="wrap_content"
+                            android:layout_height="48dp"
+                            android:text="确定"
+                            android:textSize="15sp"
+                            android:backgroundTint="@color/blue_600"
+                            android:textColor="@color/white" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="输入浮点数并点击确定，下发到设备 Field2 字段"
+                        android:textSize="12sp"
+                        android:textColor="@color/gray_400"
+                        android:layout_marginTop="8dp" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
         <!-- 电源 & 灯控制卡片 -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"

@@ -41,6 +41,9 @@ class MainActivity : AppCompatActivity() {
         lightOn = savedState.light
         updatePowerUI()
         updateLightUI()
+        // 从集中状态恢复设定值显示
+        binding.tvSetPointValue.text = "当前设定值: ${formatSetPoint(savedState.setPoint)}"
+        binding.etSetPoint.setText(formatSetPoint(savedState.setPoint))
 
         setupListeners()
         refreshStatus()
@@ -67,6 +70,38 @@ class MainActivity : AppCompatActivity() {
             val isExpanded = binding.layoutTempContent.visibility == View.VISIBLE
             binding.layoutTempContent.visibility = if (isExpanded) View.GONE else View.VISIBLE
             binding.tvTempArrow.rotation = if (isExpanded) 0f else 90f
+        }
+
+        // 设定值卡片折叠/展开
+        binding.layoutSetPointHeader.setOnClickListener {
+            val isExpanded = binding.layoutSetPointContent.visibility == View.VISIBLE
+            binding.layoutSetPointContent.visibility = if (isExpanded) View.GONE else View.VISIBLE
+            binding.tvSetPointArrow.rotation = if (isExpanded) 0f else 90f
+        }
+
+        // 设定值确定按钮：读取浮点输入并下发到 Field2
+        binding.btnSetPointConfirm.setOnClickListener {
+            val text = binding.etSetPoint.text.toString().trim()
+            if (text.isEmpty()) {
+                Toast.makeText(this, "请输入设定值", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val value = text.toFloatOrNull()
+            if (value == null) {
+                Toast.makeText(this, "请输入有效数字", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            iotManager.setSetPoint(getSavedConfig(), value)
+            appendLog("下发设定值: $value (Field2=$value)")
+            // 下发反馈：文字变绿后恢复
+            val original = getColor(R.color.blue_600)
+            val highlight = getColor(R.color.green_600)
+            binding.tvSetPointValue.setTextColor(highlight)
+            binding.tvSetPointValue.text = "已下发: $value"
+            binding.tvSetPointValue.postDelayed({
+                binding.tvSetPointValue.setTextColor(original)
+                binding.tvSetPointValue.text = "当前设定值: ${formatSetPoint(iotManager.getDeviceState().setPoint)}"
+            }, 800)
         }
 
         // 旋钮初始配置（温度范围 0~100°C，步长1）
@@ -182,6 +217,12 @@ class MainActivity : AppCompatActivity() {
                     // 温度：旋钮与文本同步到 ACK 回读的设定温度（Field1）
                     binding.knobTemperature.value = state.temperature
                     binding.tvTempValue.text = "当前温度: ${formatTemp(state.temperature)}°C"
+                    // 设定值：文本与输入框同步到 ACK 回读的 Field2
+                    binding.tvSetPointValue.text = "当前设定值: ${formatSetPoint(state.setPoint)}"
+                    // 避免覆盖用户正在输入的内容（输入框有焦点时不强制回填）
+                    if (!binding.etSetPoint.hasFocus()) {
+                        binding.etSetPoint.setText(formatSetPoint(state.setPoint))
+                    }
                     // 仅对待确认命令的回执写日志，设备主动上报的"状态同步"不刷屏
                     if (label != "状态同步") {
                         appendLog("✓ 设备已执行: $label")
@@ -475,6 +516,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun formatTemp(v: Float): String {
         return if (v == v.toInt().toFloat()) v.toInt().toString() else v.toString()
+    }
+
+    /** 设定值格式化：整数显示整数，浮点保留原始精度 */
+    private fun formatSetPoint(v: Float): String {
+        return if (v == v.toInt().toFloat()) v.toInt().toString() else String.format("%.2f", v)
     }
 
     private fun formatValue(v: Any?, key: String = ""): String {
