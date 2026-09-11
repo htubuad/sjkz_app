@@ -133,7 +133,7 @@ class MainActivity : AppCompatActivity() {
             appendLog("发送 → $topic : $payload")
         }
         binding.btnFillTemplate.setOnClickListener {
-            binding.etCustomPayload.setText("{\"DeviceID\":\"001_V1.1.0\",\"Flag\":\"R\",\"power\":0,\"light\":1,\"Switches\":0,\"Field1\":0.00,\"Field2\":0.00}")
+            binding.etCustomPayload.setText("{\"DeviceID\":\"001_V1.1.0\",\"Flag\":\"T\",\"power\":0,\"light\":1,\"Switches\":0,\"Field1\":0.00,\"Field2\":0.00}")
             binding.etCustomPayload.setSelection(binding.etCustomPayload.text.length)
             Toast.makeText(this, "已填入默认模板", Toast.LENGTH_SHORT).show()
         }
@@ -186,9 +186,9 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * 处理自定义 Topic 消息，支持标准接收报文格式：
-     * {"DeviceID":"001_V1.1.0","Flag":"T","Temp":46.4,"RSSI":-61,"Switches":0,"Field1":0.00,"Field2":0.00}
+     * {"DeviceID":"001_V1.1.0","Flag":"R","Temp":46.4,"RSSI":-61,"Switches":0,"Field1":0.00,"Field2":0.00}
      *
-     * Flag 含义（设备端视角）: T=设备发送(控制端接收), R=设备接收(控制端发送), P=回执
+     * Flag 含义（控制端视角）: T=控制端发送, R=控制端接收(设备发送), P=回执
      */
     private fun handleCustomMessage(payload: String) {
         appendLog("收到指令: $payload")
@@ -206,8 +206,8 @@ class MainActivity : AppCompatActivity() {
             if (deviceId.isNotEmpty() || flag.isNotEmpty()) {
                 addParamRow("DeviceID", deviceId)
                 val flagDesc = when (flag) {
-                    "T" -> "T 设备发送"
-                    "R" -> "R 设备接收"
+                    "T" -> "T 控制端发送"
+                    "R" -> "R 控制端接收"
                     "P" -> "P 回执"
                     else -> flag
                 }

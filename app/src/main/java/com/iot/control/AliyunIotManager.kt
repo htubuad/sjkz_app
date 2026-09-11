@@ -316,7 +316,7 @@ class AliyunIotManager(private val context: Context) {
      *
      * 字段说明:
      * - DeviceID: 从设置页选项卡选择的设备ID（如 001_V1.1.0）
-     * - Flag: 报文方向标识（设备端视角：T=设备发送, R=设备接收, P=回执）
+     * - Flag: 报文方向标识（控制端视角：T=控制端发送, R=控制端接收(设备发送), P=回执）
      * - power: 电源状态 0/1
      * - light: 灯状态 0/1
      * - Switches: 10路开关位掩码（整数），switch 1 = bit 0 (LSB)，switch 10 = bit 9
@@ -349,8 +349,8 @@ class AliyunIotManager(private val context: Context) {
         // DeviceID 从设置页选项卡选择
         val deviceId = prefs.getString("device_id", "001_V1.1.0") ?: "001_V1.1.0"
 
-        // Flag=R 表示设备端接收（控制端发送）
-        val flag = "R"
+        // Flag=T 表示控制端发送（设备端接收）
+        val flag = "T"
 
         // 10 路开关按位打包为整数：switch 1 = bit 0 (LSB)，switch 10 = bit 9
         var switchBits = 0
