@@ -133,7 +133,7 @@ class MainActivity : AppCompatActivity() {
             appendLog("发送 → $topic : $payload")
         }
         binding.btnFillTemplate.setOnClickListener {
-            binding.etCustomPayload.setText("{\"num\":999}")
+            binding.etCustomPayload.setText("{\"DeviceID\":\"001_V1.1.0\",\"Flag\":\"T\",\"power\":0,\"light\":1,\"Switches\":0,\"Field1\":0.00,\"Field2\":0.00}")
             binding.etCustomPayload.setSelection(binding.etCustomPayload.text.length)
             Toast.makeText(this, "已填入默认模板", Toast.LENGTH_SHORT).show()
         }
@@ -161,6 +161,16 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        iotManager.ackListener = { success, label ->
+            runOnUiThread {
+                if (success) {
+                    appendLog("✓ 设备已执行: $label")
+                } else {
+                    appendLog("✗ 未收到设备回执: $label (超时)")
+                }
+            }
+        }
+
         iotManager.messageListener = { topic, payload ->
             runOnUiThread {
                 // 自定义 Topic 消息处理（/user/update 和 /user/get 都走此分支）
@@ -176,9 +186,9 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * 处理自定义 Topic 消息，支持标准接收报文格式：
-     * {"DeviceID":"001_V1.1.0","Flag":"T","Temp":46.4,"RSSI":-61,"Switches":0,"Field1":0.00,"Field2":0.00}
+     * {"DeviceID":"001_V1.1.0","Flag":"R","Temp":46.4,"RSSI":-61,"Switches":0,"Field1":0.00,"Field2":0.00}
      *
-     * Flag 含义: S=单路开关, T=温度, P=电源, L=灯, A=全控
+     * Flag 含义: T=发送, R=接收, P=回执
      */
     private fun handleCustomMessage(payload: String) {
         appendLog("收到指令: $payload")
@@ -196,11 +206,9 @@ class MainActivity : AppCompatActivity() {
             if (deviceId.isNotEmpty() || flag.isNotEmpty()) {
                 addParamRow("DeviceID", deviceId)
                 val flagDesc = when (flag) {
-                    "S" -> "S 单路开关"
-                    "T" -> "T 温度"
-                    "P" -> "P 电源"
-                    "L" -> "L 灯"
-                    "A" -> "A 全控"
+                    "T" -> "T 发送"
+                    "R" -> "R 接收"
+                    "P" -> "P 回执"
                     else -> flag
                 }
                 addParamRow("Flag", flagDesc)

@@ -121,6 +121,15 @@ class AliyunIotManager(private val context: Context) {
 
     var statusListener: ((Status, String) -> Unit)? = null
     var messageListener: ((String, String) -> Unit)? = null
+    /** 回执监听：设备返回 Flag="P" 时触发 (success, label) */
+    var ackListener: ((Boolean, String) -> Unit)? = null
+
+    // 待确认回执的命令信息
+    @Volatile
+    private var pendingAckLabel: String? = null
+    @Volatile
+    private var pendingAckDeviceId: String? = null
+    private var pendingAckTimer: java.util.Timer? = null
 
     /**
      * 连接阿里云 IoT（在后台线程执行）
@@ -229,6 +238,22 @@ class AliyunIotManager(private val context: Context) {
                 if (topic?.endsWith("thing/service/property/set") == true) {
                     replyToPropertySet(config, payload)
                 }
+                // 检测回执报文（Flag="P"）
+                try {
+                    val recvJson = org.json.JSONObject(payload)
+                    val recvFlag = recvJson.optString("Flag", "")
+                    if (recvFlag == "P") {
+                        val recvDevId = recvJson.optString("DeviceID", "")
+                        val label = pendingAckLabel
+                        if (label != null && (pendingAckDeviceId == null || recvDevId == pendingAckDeviceId)) {
+                            pendingAckLabel = null
+                            pendingAckDeviceId = null
+                            pendingAckTimer?.cancel()
+                            pendingAckTimer = null
+                            ackListener?.invoke(true, label)
+                        }
+                    }
+                } catch (_: Exception) {}
                 messageListener?.invoke(topicStr, payload)
             }
 
@@ -291,7 +316,7 @@ class AliyunIotManager(private val context: Context) {
      *
      * 字段说明:
      * - DeviceID: 从设置页选项卡选择的设备ID（如 001_V1.1.0）
-     * - Flag: 操作类型标识（S=单路开关, T=温度, P=电源, L=灯, A=全控）
+     * - Flag: 报文方向标识（T=发送, R=接收, P=回执）
      * - power: 电源状态 0/1
      * - light: 灯状态 0/1
      * - Switches: 10路开关位掩码（整数），switch 1 = bit 0 (LSB)，switch 10 = bit 9
@@ -324,15 +349,8 @@ class AliyunIotManager(private val context: Context) {
         // DeviceID 从设置页选项卡选择
         val deviceId = prefs.getString("device_id", "001_V1.1.0") ?: "001_V1.1.0"
 
-        // Flag 根据操作类型设置
-        val flag = when (typeCode) {
-            1 -> "S"   // 单路开关
-            2 -> "T"   // 温度
-            3 -> "P"   // 电源
-            4 -> "L"   // 灯
-            5 -> "A"   // 全控
-            else -> "T"
-        }
+        // Flag 固定为 T（发送）
+        val flag = "T"
 
         // 10 路开关按位打包为整数：switch 1 = bit 0 (LSB)，switch 10 = bit 9
         var switchBits = 0
@@ -353,7 +371,24 @@ class AliyunIotManager(private val context: Context) {
                 client.publish(topic, payload.toByteArray(Charsets.UTF_8), 0, false)
                 lastSentValues[dedupKey] = valueStr
                 Log.i(TAG, "下发[$label]: $topic $payload")
-                statusListener?.invoke(Status.CONNECTED, "已下发 $label: $payload")
+                // 设置待确认回执
+                pendingAckLabel = label
+                pendingAckDeviceId = deviceId
+                pendingAckTimer?.cancel()
+                pendingAckTimer = java.util.Timer().apply {
+                    schedule(object : java.util.TimerTask() {
+                        override fun run() {
+                            val l = pendingAckLabel
+                            if (l != null) {
+                                pendingAckLabel = null
+                                pendingAckDeviceId = null
+                                pendingAckTimer = null
+                                ackListener?.invoke(false, l)
+                            }
+                        }
+                    }, 10000) // 10秒超时
+                }
+                statusListener?.invoke(Status.CONNECTED, "发送中 $label...")
             } catch (e: Exception) {
                 Log.e(TAG, "下发[$label]失败: ${e.message}")
                 statusListener?.invoke(Status.ERROR, "$label 下发失败: ${e.message}")
