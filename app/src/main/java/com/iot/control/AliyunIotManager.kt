@@ -2,6 +2,7 @@ package com.iot.control
 
 import android.content.Context
 import android.util.Log
+import android.widget.Toast
 import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 import javax.crypto.Mac
@@ -123,7 +124,7 @@ class AliyunIotManager(private val context: Context) {
     var messageListener: ((String, String) -> Unit)? = null
     /** 发送监听：控制端下发成功后触发 (topic, payload)，便于 UI 显示原始报文 */
     var sentPayloadListener: ((String, String) -> Unit)? = null
-    /** 回执监听：设备返回 方向="回执" 时触发 (success, label) */
+    /** 回执监听：设备返回 Dir="ACK" 时触发 (success, label)，用于日志记录 */
     var ackListener: ((Boolean, String) -> Unit)? = null
 
     // 待确认回执的命令信息
@@ -132,6 +133,28 @@ class AliyunIotManager(private val context: Context) {
     @Volatile
     private var pendingAckDeviceId: String? = null
     private var pendingAckTimer: java.util.Timer? = null
+
+    /**
+     * 显示回执弹窗（统一用 Application context，任何页面都能显示）
+     * - success: 绿色背景 + 成功
+     * - fail:    红色背景 + 失败
+     */
+    private fun showAckToast(text: String, success: Boolean) {
+        try {
+            val toastView = android.view.LayoutInflater.from(context)
+                .inflate(R.layout.toast_ack, null)
+            toastView.findViewById<android.widget.TextView>(R.id.tvToastText).text = text
+            toastView.findViewById<android.view.View>(R.id.toastContainer)
+                .setBackgroundResource(if (success) R.drawable.toast_bg_success else R.drawable.toast_bg_fail)
+            Toast(context).apply {
+                duration = Toast.LENGTH_SHORT
+                view = toastView
+                setGravity(android.view.Gravity.CENTER, 0, 0)
+            }.show()
+        } catch (e: Exception) {
+            Log.w(TAG, "显示回执弹窗失败: ${e.message}")
+        }
+    }
 
     /**
      * 连接阿里云 IoT（在后台线程执行）
@@ -252,6 +275,8 @@ class AliyunIotManager(private val context: Context) {
                             pendingAckDeviceId = null
                             pendingAckTimer?.cancel()
                             pendingAckTimer = null
+                            // 统一在 manager 显示回执弹窗（任何页面都生效）
+                            showAckToast("成功\n$label", true)
                             ackListener?.invoke(true, label)
                         }
                     }
@@ -387,6 +412,8 @@ class AliyunIotManager(private val context: Context) {
                                 pendingAckLabel = null
                                 pendingAckDeviceId = null
                                 pendingAckTimer = null
+                                // 统一在 manager 显示超时弹窗（任何页面都生效）
+                                showAckToast("失败\n$l", false)
                                 ackListener?.invoke(false, l)
                             }
                         }

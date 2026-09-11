@@ -3,9 +3,7 @@ package com.iot.control
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.view.Gravity
-import android.view.View
 import android.widget.Button
-import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.gridlayout.widget.GridLayout
@@ -41,21 +39,8 @@ class SwitchesActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refreshEnabled()
-        // 开关页也接收回执弹窗（成功/失败）
-        iotManager.ackListener = { success, label ->
-            runOnUiThread {
-                showAckToast(
-                    if (success) "成功\n$label" else "失败\n$label",
-                    success
-                )
-            }
-        }
-    }
-
-    override fun onPause() {
-        super.onPause()
-        // 离开开关页时把回执监听交还给 MainActivity（避免回执弹窗无人接收）
-        // 不主动置空，MainActivity 在自己的 onResume 会重新注册
+        // 回执弹窗由 AliyunIotManager 统一显示，开关页无需注册 ackListener
+        // MainActivity 在其 onResume 时会重新注册 ackListener 用于日志
     }
 
     private fun setupSwitches() {
@@ -171,25 +156,4 @@ class SwitchesActivity : AppCompatActivity() {
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
-
-    /**
-     * 显示回执弹窗（加粗大字 + 背景色，自动消失）
-     * - success: 绿色背景 + 成功
-     * - fail:    红色背景 + 失败
-     */
-    private fun showAckToast(text: String, success: Boolean) {
-        val toastView = layoutInflater.inflate(
-            R.layout.toast_ack,
-            findViewById(android.R.id.content),
-            false
-        )
-        toastView.findViewById<TextView>(R.id.tvToastText).text = text
-        toastView.findViewById<View>(R.id.toastContainer)
-            .setBackgroundResource(if (success) R.drawable.toast_bg_success else R.drawable.toast_bg_fail)
-        Toast(this).apply {
-            duration = Toast.LENGTH_SHORT
-            view = toastView
-            setGravity(Gravity.CENTER, 0, 0)
-        }.show()
-    }
 }

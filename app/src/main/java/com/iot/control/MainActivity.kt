@@ -169,15 +169,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // 回执弹窗由 AliyunIotManager 统一显示，这里只记录日志
         iotManager.ackListener = { success, label ->
             runOnUiThread {
                 if (success) {
-                    // 收到设备回执，弹窗显示发送成功并自动消失（加大字体+绿色背景）
-                    showAckToast("成功\n$label", success = true)
                     appendLog("✓ 设备已执行: $label")
                 } else {
-                    // 超时未收到回执，弹窗提示失败（加大字体+红色背景）
-                    showAckToast("失败\n$label", success = false)
                     appendLog("✗ 未收到设备回执: $label (超时)")
                 }
             }
@@ -516,26 +513,5 @@ class MainActivity : AppCompatActivity() {
         // 立即恢复，并在下一帧再恢复一次（布局完成后）
         scrollView?.scrollTo(0, savedScrollY)
         scrollView?.post { scrollView.scrollTo(0, savedScrollY) }
-    }
-
-    /**
-     * 显示回执弹窗（加粗大字 + 背景色，自动消失）
-     * - success: 绿色背景 + ✓ 发送成功
-     * - fail:    红色背景 + ✗ 未收到回执
-     */
-    private fun showAckToast(text: String, success: Boolean) {
-        val toastView = layoutInflater.inflate(
-            R.layout.toast_ack,
-            findViewById(android.R.id.content),
-            false
-        )
-        toastView.findViewById<TextView>(R.id.tvToastText).text = text
-        toastView.findViewById<View>(R.id.toastContainer)
-            .setBackgroundResource(if (success) R.drawable.toast_bg_success else R.drawable.toast_bg_fail)
-        Toast(this).apply {
-            duration = Toast.LENGTH_SHORT
-            view = toastView
-            setGravity(android.view.Gravity.CENTER, 0, 0)
-        }.show()
     }
 }
