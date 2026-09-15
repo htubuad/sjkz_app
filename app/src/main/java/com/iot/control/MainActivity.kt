@@ -89,8 +89,42 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         refreshStatus()
         setupManagerListeners()
+        // 从后台回到前台时，把后台期间 ACK 更新的集中状态同步到 UI
+        syncStateToUI()
         refreshChart()
         refreshChart2()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // 清理监听器，避免 Activity 销毁后 iotManager 仍持有它导致内存泄漏
+        // iotManager 本身是 Application 单例，会继续在后台接收并处理 MQTT 消息（更新 deviceState）
+        iotManager.statusListener = null
+        iotManager.messageListener = null
+        iotManager.sentPayloadListener = null
+        iotManager.ackListener = null
+        iotManager.temperatureHistoryListener = null
+        iotManager.temperature2HistoryListener = null
+    }
+
+    /**
+     * 从 iotManager.deviceState 同步当前状态到 UI。
+     * 用途：从后台回到前台时，把后台期间通过 ACK 更新的设备状态反映到界面。
+     */
+    private fun syncStateToUI() {
+        val state = iotManager.getDeviceState()
+        powerOn = state.power
+        lightOn = state.light
+        updatePowerUI()
+        updateLightUI()
+        // 设定值：按当前 RadioGroup 选择的字段显示（输入框有焦点时不强行回填）
+        val isF1 = binding.rbField1.isChecked
+        val fieldValue = if (isF1) state.temperature else state.setPoint
+        val fieldLabel = if (isF1) "Field1(温度设定)" else "Field2(设定值)"
+        binding.tvSetPointValue.text = "当前 $fieldLabel: ${formatSetPoint(fieldValue)}"
+        if (!binding.etSetPoint.hasFocus()) {
+            binding.etSetPoint.setText(formatSetPoint(fieldValue))
+        }
     }
 
     private fun setupListeners() {
