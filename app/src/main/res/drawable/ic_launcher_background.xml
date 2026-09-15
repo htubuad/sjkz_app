@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startColor="#1E3A8A"
+                android:centerColor="#2563EB"
+                android:endColor="#3B82F6"
+                android:angle="135" />
+        </aapt:attr>
+    </path>
+</vector>

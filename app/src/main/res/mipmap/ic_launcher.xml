@@ -1,0 +1,49 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 背景渐变方块 -->
+    <path
+        android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startColor="#1E3A8A"
+                android:centerColor="#2563EB"
+                android:endColor="#3B82F6"
+                android:angle="135"
+                xmlns:aapt="http://schemas.android.com/aapt" />
+        </aapt:attr>
+    </path>
+    <!-- 电源符号：白色圆环（顶部断开） -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="9"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M54,34 A22,22 0 1,1 41.8,40" />
+    <!-- 顶部竖线 -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="9"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M54,30 L54,46" />
+    <!-- 青色外发光环 -->
+    <path
+        android:strokeColor="#67E8F9"
+        android:strokeWidth="2"
+        android:fillColor="#00000000"
+        android:pathData="M54,26 A28,28 0 1,1 34.1,35.2" />
+    <!-- 底部三个IoT节点 -->
+    <path
+        android:fillColor="#67E8F9"
+        android:pathData="M38,76 m-3.2,0 a3.2,3.2 0,1 1,6.4 0 a3.2,3.2 0,1 1,-6.4 0" />
+    <path
+        android:fillColor="#67E8F9"
+        android:pathData="M54,80 m-3.2,0 a3.2,3.2 0,1 1,6.4 0 a3.2,3.2 0,1 1,-6.4 0" />
+    <path
+        android:fillColor="#67E8F9"
+        android:pathData="M70,76 m-3.2,0 a3.2,3.2 0,1 1,6.4 0 a3.2,3.2 0,1 1,-6.4 0" />
+</vector>

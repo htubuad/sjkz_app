@@ -1,0 +1,187 @@
+package com.iot.control
+
+import android.content.SharedPreferences
+import android.os.Bundle
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import com.iot.control.databinding.ActivitySettingsBinding
+
+class SettingsActivity : AppCompatActivity() {
+
+    private lateinit var binding: ActivitySettingsBinding
+    private lateinit var iotManager: AliyunIotManager
+    private lateinit var prefs: SharedPreferences
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivitySettingsBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        prefs = getSharedPreferences("iot_config", MODE_PRIVATE)
+        iotManager = (application as IoTApp).iotManager
+
+        loadSavedConfig()
+        setupDeviceIdSpinner()
+        setupListeners()
+        refreshStatus()
+        showVersion()
+    }
+
+    private fun setupDeviceIdSpinner() {
+        val options = resources.getStringArray(R.array.device_id_options)
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, options)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        binding.spinnerDeviceId.adapter = adapter
+
+        // 恢复已保存的 DeviceID 选择（按前缀匹配，忽略版本号）
+        val savedId = prefs.getString("device_id", AliyunIotManager.DEFAULT_DEVICE_ID) ?: AliyunIotManager.DEFAULT_DEVICE_ID
+        val savedPrefix = savedId.substringBefore('_')
+        val matchPos = options.indexOfFirst { it == savedPrefix }
+        binding.spinnerDeviceId.setSelection(if (matchPos >= 0) matchPos else 0)
+
+        // 选择变化时保存：保存"前缀_V0.0.0"格式，版本号由设备 ACK 动态更新
+        binding.spinnerDeviceId.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                val selected = options[position]
+                // 若已有保存的同前缀 ID（含 ACK 更新过的版本号），则保留；否则用默认 0.0.0
+                val existing = prefs.getString("device_id", AliyunIotManager.DEFAULT_DEVICE_ID) ?: AliyunIotManager.DEFAULT_DEVICE_ID
+                val existingPrefix = existing.substringBefore('_')
+                val toSave = if (existingPrefix == selected) existing else "${selected}_V0.0.0"
+                prefs.edit().putString("device_id", toSave).apply()
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+    }
+
+    private fun setupListeners() {
+        binding.btnBack.setOnClickListener {
+            finish()
+        }
+
+        binding.btnSave.setOnClickListener {
+            saveConfig()
+            Toast.makeText(this, "配置已保存", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.btnConnect.setOnClickListener {
+            val config = getConfigFromInput()
+            if (config.productKey.isBlank() || config.deviceName.isBlank() || config.deviceSecret.isBlank()) {
+                Toast.makeText(this, "请填写完整的设备三元组", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            // 连接前自动保存，避免重启后丢失
+            saveConfig()
+            if (iotManager.isConnected()) {
+                iotManager.disconnect()
+            } else {
+                iotManager.connect(config)
+            }
+        }
+
+        iotManager.statusListener = { status, msg ->
+            runOnUiThread {
+                updateStatusUI(status, msg)
+            }
+        }
+    }
+
+    private fun refreshStatus() {
+        if (iotManager.isConnected()) {
+            updateStatusUI(AliyunIotManager.Status.CONNECTED, "已连接到阿里云 IoT")
+        } else {
+            updateStatusUI(AliyunIotManager.Status.DISCONNECTED, "未连接")
+        }
+    }
+
+    private fun updateStatusUI(status: AliyunIotManager.Status, msg: String) {
+        when (status) {
+            AliyunIotManager.Status.DISCONNECTED -> {
+                binding.statusDot.setBackgroundResource(R.drawable.circle_gray)
+                binding.tvStatus.text = "未连接"
+                binding.tvStatus.setTextColor(getColor(R.color.gray_600))
+                binding.btnConnect.text = "连接设备"
+                binding.btnConnect.setBackgroundColor(getColor(R.color.green_600))
+                binding.btnConnect.isEnabled = true
+            }
+            AliyunIotManager.Status.CONNECTING -> {
+                binding.statusDot.setBackgroundResource(R.drawable.circle_yellow)
+                binding.tvStatus.text = "连接中…"
+                binding.tvStatus.setTextColor(getColor(R.color.gray_600))
+                binding.btnConnect.isEnabled = false
+            }
+            AliyunIotManager.Status.CONNECTED -> {
+                binding.statusDot.setBackgroundResource(R.drawable.circle_green)
+                binding.tvStatus.text = "已连接"
+                binding.tvStatus.setTextColor(getColor(R.color.green_700))
+                binding.btnConnect.text = "断开连接"
+                binding.btnConnect.setBackgroundColor(getColor(R.color.red_500))
+                binding.btnConnect.isEnabled = true
+            }
+            AliyunIotManager.Status.ERROR -> {
+                binding.statusDot.setBackgroundResource(R.drawable.circle_red)
+                binding.tvStatus.text = "连接错误"
+                binding.tvStatus.setTextColor(getColor(R.color.red_600))
+                binding.btnConnect.text = "连接设备"
+                binding.btnConnect.setBackgroundColor(getColor(R.color.green_600))
+                binding.btnConnect.isEnabled = true
+            }
+        }
+    }
+
+    private fun getConfigFromInput(): AliyunIotManager.DeviceConfig {
+        return AliyunIotManager.DeviceConfig(
+            productKey = binding.etProductKey.text.toString().trim(),
+            deviceName = binding.etDeviceName.text.toString().trim(),
+            deviceSecret = binding.etDeviceSecret.text.toString().trim(),
+            region = binding.etRegion.text.toString().trim().ifBlank { "cn-shanghai" }
+        )
+    }
+
+    private fun saveConfig() {
+        val config = getConfigFromInput()
+        prefs.edit().apply {
+            putString("productKey", config.productKey)
+            putString("deviceName", config.deviceName)
+            putString("deviceSecret", config.deviceSecret)
+            putString("region", config.region)
+            apply()
+        }
+    }
+
+    private fun loadSavedConfig() {
+        // 优先从 device_list_json 的第 0 条读取（兼容升级前已保存多设备的场景）
+        val listJson = prefs.getString("device_list_json", null)
+        if (listJson != null) {
+            try {
+                val arr = org.json.JSONArray(listJson)
+                if (arr.length() > 0) {
+                    val o = arr.getJSONObject(0)
+                    binding.etProductKey.setText(o.optString("productKey"))
+                    binding.etDeviceName.setText(o.optString("deviceName"))
+                    binding.etDeviceSecret.setText(o.optString("deviceSecret"))
+                    binding.etRegion.setText(o.optString("region").ifBlank { "cn-shanghai" })
+                    // 同步到旧字段，确保 autoConnect 能读到
+                    prefs.edit().apply {
+                        putString("productKey", o.optString("productKey"))
+                        putString("deviceName", o.optString("deviceName"))
+                        putString("deviceSecret", o.optString("deviceSecret"))
+                        putString("region", o.optString("region").ifBlank { "cn-shanghai" })
+                        apply()
+                    }
+                    return
+                }
+            } catch (_: Exception) { }
+        }
+        binding.etProductKey.setText(prefs.getString("productKey", ""))
+        binding.etDeviceName.setText(prefs.getString("deviceName", ""))
+        binding.etDeviceSecret.setText(prefs.getString("deviceSecret", ""))
+        binding.etRegion.setText(prefs.getString("region", "cn-shanghai"))
+    }
+
+    private fun showVersion() {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        binding.tvVersion.text = "v${info.versionName} (${info.versionCode})"
+    }
+}
