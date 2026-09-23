@@ -57,12 +57,15 @@ class ChartFullscreenActivity : ComponentActivity() {
         chartView.useFixedYRange = true
         chartView.xAxisTextSize = 28f
         chartView.xLabelGapMin = 220f
-        chartView.paddingLeftPx = 70f
+        chartView.paddingLeftPx = 100f
         chartView.paddingRightPx = 0f
         chartView.tooltipTextSize = 36f
         chartView.tooltipTimeSize = 32f
         chartView.tooltipTimeFormatStr = "yyyy-MM-dd HH:mm:ss"
         chartView.dragOnlyOnAxis = true
+        chartView.yAxisTextSize = 42f
+        chartView.yAxisTextColor = Color.parseColor("#7C3AED")
+        chartView.yAxisTextBold = true
         chartView.clear()
 
         if (isHistoryMode) {

@@ -100,8 +100,12 @@ class MainActivity : AppCompatActivity() {
         refreshStatus()
         binding.chartTemperature.setAccentColor(Color.parseColor("#3B82F6"))
         binding.chartTemperature.showYLabels = true
+        binding.chartTemperature.enableScaleGesture = false
+        binding.chartTemperature.enableDragGesture = false
         binding.chartTemperature2.setAccentColor(Color.parseColor("#10B981"))
         binding.chartTemperature2.showYLabels = true
+        binding.chartTemperature2.enableScaleGesture = false
+        binding.chartTemperature2.enableDragGesture = false
         binding.tvChart2Current.setTextColor(Color.parseColor("#10B981"))
 
         binding.chartTemperature.onDoubleTapCallback = {
@@ -775,14 +779,60 @@ class MainActivity : AppCompatActivity() {
     private fun selectAllTimePickerInput(
         picker: com.google.android.material.timepicker.MaterialTimePicker
     ) {
-        mainHandler.post {
-            val view = picker.view ?: return@post
-            val editTexts = java.util.ArrayList<android.widget.EditText>()
-            collectEditTexts(view, editTexts)
-            editTexts.forEach { et ->
-                et.requestFocus()
-                et.selectAll()
+        picker.viewLifecycleOwnerLiveData.observe(this) { owner ->
+            if (owner == null) return@observe
+            val view = picker.view ?: return@observe
+            mainHandler.postDelayed({
+                switchTimePickerToTextInput(view)
+                retryFindEditTextAndShowKeyboard(view, 0)
+            }, 150)
+        }
+    }
+
+    private fun switchTimePickerToTextInput(view: android.view.View) {
+        val stack = java.util.ArrayDeque<android.view.View>()
+        stack.push(view)
+        while (stack.isNotEmpty()) {
+            val v = stack.pop()
+            if (v is android.view.ViewGroup) {
+                for (i in 0 until v.childCount) stack.push(v.getChildAt(i))
             }
+            val desc = v.contentDescription
+            if (desc != null && desc.toString().contains("keyboard", ignoreCase = true)) {
+                v.performClick()
+                return
+            }
+            val idName = try {
+                resources.getResourceName(v.id)
+            } catch (_: Exception) { "" }
+            if (idName.contains("keyboard_mode", ignoreCase = true)) {
+                v.performClick()
+                return
+            }
+        }
+    }
+
+    private fun retryFindEditTextAndShowKeyboard(
+        root: android.view.View, attempt: Int
+    ) {
+        if (attempt > 15) return
+        val ets = java.util.ArrayList<android.widget.EditText>()
+        collectEditTexts(root, ets)
+        if (ets.isNotEmpty()) {
+            val et = ets.first()
+            et.requestFocus()
+            et.selectAll()
+            mainHandler.postDelayed({
+                try {
+                    val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+                        as android.view.inputmethod.InputMethodManager
+                    imm.showSoftInput(et, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+                } catch (_: Exception) {}
+            }, 100)
+        } else {
+            mainHandler.postDelayed(
+                { retryFindEditTextAndShowKeyboard(root, attempt + 1) }, 100
+            )
         }
     }
 

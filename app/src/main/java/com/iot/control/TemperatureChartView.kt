@@ -58,6 +58,21 @@ class TemperatureChartView @JvmOverloads constructor(
         get() = textPaint.textSize
         set(value) { textPaint.textSize = value; invalidate() }
 
+    var yAxisTextColor: Int
+        get() = textPaint.color
+        set(value) { textPaint.color = value; invalidate() }
+
+    var yAxisTextBold: Boolean
+        get() = textPaint.isFakeBoldText
+        set(value) { textPaint.isFakeBoldText = value; invalidate() }
+
+    var showYMinorLabels = false
+    var yAxisMinorTextColor = Color.parseColor("#A78BFA")
+
+    var yAxisMinorTextSize: Float
+        get() = minorTextPaint.textSize
+        set(value) { minorTextPaint.textSize = value; invalidate() }
+
     var xAxisTextSize: Float
         get() = xTextPaint.textSize
         set(value) { xTextPaint.textSize = value; invalidate() }
@@ -66,6 +81,9 @@ class TemperatureChartView @JvmOverloads constructor(
 
     var paddingLeftPx: Float = -1f
     var paddingRightPx: Float = 30f
+
+    var enableScaleGesture = true
+    var enableDragGesture = true
 
     private fun getChartPaddingLeft(): Float {
         if (paddingLeftPx >= 0f) return paddingLeftPx
@@ -106,6 +124,7 @@ class TemperatureChartView @JvmOverloads constructor(
             velocityX: Float,
             velocityY: Float
         ): Boolean {
+            if (!enableDragGesture) return false
             if (dragOnlyOnAxis && e1 != null && !isInAxisZone(e1.y)) return false
             val paddingLeft = getChartPaddingLeft()
             val paddingRight = getChartPaddingRight()
@@ -156,6 +175,13 @@ class TemperatureChartView @JvmOverloads constructor(
         style = Paint.Style.STROKE
         isAntiAlias = true
         pathEffect = DashPathEffect(floatArrayOf(2f, 4f), 0f)
+    }
+
+    private val minorTextPaint = Paint().apply {
+        color = Color.parseColor("#A78BFA")
+        textSize = 18f
+        isAntiAlias = true
+        textAlign = Paint.Align.RIGHT
     }
 
     private val zeroLinePaint = Paint().apply {
@@ -517,7 +543,7 @@ class TemperatureChartView @JvmOverloads constructor(
         if (!multiTouchActive) {
             gestureDetector.onTouchEvent(event)
         }
-        scaleGestureDetector.onTouchEvent(event)
+        if (enableScaleGesture) scaleGestureDetector.onTouchEvent(event)
 
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -531,7 +557,7 @@ class TemperatureChartView @JvmOverloads constructor(
                 }
             }
             MotionEvent.ACTION_MOVE -> {
-                if (event.pointerCount == 1 && isDragging && !multiTouchActive) {
+                if (enableDragGesture && event.pointerCount == 1 && isDragging && !multiTouchActive) {
                     val allowDrag = !dragOnlyOnAxis || lastTouchInAxis
                     if (allowDrag) {
                         val dx = event.x - lastDragX
@@ -764,11 +790,16 @@ class TemperatureChartView @JvmOverloads constructor(
         val minorCount = 4
         val minorStep = stepY / (minorCount + 1)
         var mv = kotlin.math.ceil(yMin / minorStep) * minorStep
+        minorTextPaint.color = yAxisMinorTextColor
         while (mv <= yMax) {
             val majorV = kotlin.math.round(mv / stepY) * stepY
             if (abs(mv - majorV) > 0.001f) {
                 val y = top + h - ((mv - yMin) / yRange) * h
                 canvas.drawLine(left, y, left + w, y, minorGridPaint)
+                if (showYMinorLabels) {
+                    val label = formatTick(mv)
+                    canvas.drawText(label, left - 12f, y + 8f, minorTextPaint)
+                }
             }
             mv += minorStep
         }
