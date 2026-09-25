@@ -473,10 +473,11 @@ class MainActivity : AppCompatActivity() {
      */
     private fun handleCustomMessage(payload: String) {
         appendLog("收到指令: $payload")
+        val scrollView = binding.root as? android.widget.ScrollView
+        val savedScrollY = scrollView?.scrollY ?: 0
         try {
             val json = JSONObject(payload)
 
-            // 在参数区域显示
             binding.layoutParams.removeAllViews()
             binding.tvNoData.visibility = android.view.View.GONE
 
@@ -532,6 +533,9 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             appendLog("解析失败: ${e.message}")
+        } finally {
+            scrollView?.scrollTo(0, savedScrollY)
+            scrollView?.post { scrollView.scrollTo(0, savedScrollY) }
         }
     }
 
@@ -735,10 +739,11 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    private var selectedStartTime: String = "00:00"
+
     private var selectedStartDate: String = ""
-    private var selectedStartTime: String = "00:00:00"
     private var selectedEndDate: String = ""
-    private var selectedEndTime: String = "23:59:59"
+    private var selectedEndTime: String = "23:59"
 
     private fun showStartDatePicker() {
         val cn = java.util.Locale("zh", "CN")
@@ -816,24 +821,69 @@ class MainActivity : AppCompatActivity() {
         root: android.view.View, attempt: Int
     ) {
         if (attempt > 15) return
-        val ets = java.util.ArrayList<android.widget.EditText>()
-        collectEditTexts(root, ets)
-        if (ets.isNotEmpty()) {
-            val et = ets.first()
-            et.requestFocus()
-            et.selectAll()
+        val hourEt = findEditTextInside(root, "material_hour_text_input")
+        val minuteEt = findEditTextInside(root, "material_minute_text_input")
+
+        if (hourEt != null && minuteEt != null) {
+            hourEt.selectAll()
+            minuteEt.requestFocus()
+            minuteEt.selectAll()
             mainHandler.postDelayed({
                 try {
                     val imm = getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
                         as android.view.inputmethod.InputMethodManager
-                    imm.showSoftInput(et, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+                    imm.showSoftInput(minuteEt, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
                 } catch (_: Exception) {}
-            }, 100)
+            }, 150)
+        } else if (hourEt != null && minuteEt == null) {
+            hourEt.selectAll()
+            clickContainerToActivate(root, "material_minute_text_input")
+            mainHandler.postDelayed(
+                { retryFindEditTextAndShowKeyboard(root, attempt + 1) }, 150
+            )
         } else {
             mainHandler.postDelayed(
-                { retryFindEditTextAndShowKeyboard(root, attempt + 1) }, 100
+                { retryFindEditTextAndShowKeyboard(root, attempt + 1) }, 150
             )
         }
+    }
+
+    private fun findEditTextInside(root: android.view.View, containerIdName: String): android.widget.EditText? {
+        val container = findViewByIdName(root, containerIdName) ?: return null
+        val ets = java.util.ArrayList<android.widget.EditText>()
+        collectEditTexts(container, ets)
+        return ets.firstOrNull()
+    }
+
+    private fun findViewByIdName(root: android.view.View, name: String): android.view.View? {
+        val stack = java.util.ArrayDeque<android.view.View>()
+        stack.push(root)
+        while (stack.isNotEmpty()) {
+            val v = stack.pop()
+            val idName = try { resources.getResourceName(v.id) } catch (_: Exception) { "" }
+            if (idName.contains(name, ignoreCase = true)) return v
+            if (v is android.view.ViewGroup) {
+                for (i in 0 until v.childCount) stack.push(v.getChildAt(i))
+            }
+        }
+        return null
+    }
+
+    private fun clickContainerToActivate(root: android.view.View, containerIdName: String) {
+        val container = findViewByIdName(root, containerIdName) ?: return
+        val stack = java.util.ArrayDeque<android.view.View>()
+        stack.push(container)
+        while (stack.isNotEmpty()) {
+            val v = stack.pop()
+            if (v is android.view.ViewGroup) {
+                for (i in 0 until v.childCount) stack.push(v.getChildAt(i))
+            }
+            if (v.isClickable && v !is android.widget.EditText) {
+                v.performClick()
+                return
+            }
+        }
+        container.performClick()
     }
 
     private fun collectEditTexts(
@@ -860,7 +910,7 @@ class MainActivity : AppCompatActivity() {
             .setTitleText("选择开始时间")
             .build()
         picker.addOnPositiveButtonClickListener {
-            selectedStartTime = "%02d:%02d:00".format(picker.hour, picker.minute)
+            selectedStartTime = "%02d:%02d".format(picker.hour, picker.minute)
             binding.tvStartTime.text = selectedStartTime
             binding.tvStartTime.setTextColor(getColor(R.color.gray_800))
         }
@@ -931,7 +981,7 @@ class MainActivity : AppCompatActivity() {
             .setTitleText("选择结束时间")
             .build()
         picker.addOnPositiveButtonClickListener {
-            selectedEndTime = "%02d:%02d:00".format(picker.hour, picker.minute)
+            selectedEndTime = "%02d:%02d".format(picker.hour, picker.minute)
             binding.tvEndTime.text = selectedEndTime
             binding.tvEndTime.setTextColor(getColor(R.color.gray_800))
         }
@@ -1020,10 +1070,10 @@ class MainActivity : AppCompatActivity() {
                     val endD = if (selectedEndDate.isNotEmpty()) selectedEndDate else selectedStartDate
                     val rangeLabel = buildString {
                         append(selectedStartDate)
-                        if (selectedStartTime != "00:00:00") append(" $selectedStartTime")
+                        if (selectedStartTime != "00:00") append(" $selectedStartTime")
                         append(" ~ ")
                         append(endD)
-                        if (selectedEndTime != "23:59:59") append(" $selectedEndTime")
+                        if (selectedEndTime != "23:59") append(" $selectedEndTime")
                     }
                     binding.tvQueryStatus.text = "完成 $countInfo 条 $daysLabel"
                     binding.tvQueryStatus.setTextColor(getColor(R.color.green_700))
@@ -1267,17 +1317,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun parseAndUpdateStatus(payload: String) {
+        val scrollView = binding.root as? android.widget.ScrollView
+        val savedScrollY = scrollView?.scrollY ?: 0
         try {
             val json = JSONObject(payload)
-            // 直接解析接收到的 JSON 顶层字段（与自定义下发格式一致）
             val keys = json.keys()
             if (!keys.hasNext()) return
 
-            // 清空之前的参数行
             binding.layoutParams.removeAllViews()
             binding.tvNoData.visibility = android.view.View.GONE
 
-            // 动态生成每个参数的行
             while (keys.hasNext()) {
                 val key = keys.next()
                 val value = json.opt(key)
@@ -1312,7 +1361,9 @@ class MainActivity : AppCompatActivity() {
                 binding.layoutParams.addView(row)
             }
         } catch (e: Exception) {
-            // �?JSON 格式，原始数据已显示
+        } finally {
+            scrollView?.scrollTo(0, savedScrollY)
+            scrollView?.post { scrollView.scrollTo(0, savedScrollY) }
         }
     }
 

@@ -41,7 +41,7 @@ class TemperatureChartView @JvmOverloads constructor(
     private val minViewCount = 10
 
     private var yZoomLevel = 1.0f
-    private val yZoomMin = 0.5f
+    private val yZoomMin = 0.05f
     private val yZoomMax = 64.0f
 
     var onDoubleTapCallback: (() -> Unit)? = null
@@ -52,7 +52,7 @@ class TemperatureChartView @JvmOverloads constructor(
     var showYLabels = false
     var useFixedYRange = false
     var fixedYMin = -50f
-    var fixedYMax = 500f
+    var fixedYMax = 400f
 
     var yAxisTextSize: Float
         get() = textPaint.textSize
@@ -585,15 +585,18 @@ class TemperatureChartView @JvmOverloads constructor(
     private fun computeYRange(values: List<Float>): Triple<Float, Float, Float> {
         var minV = values.minOrNull() ?: 0f
         var maxV = values.maxOrNull() ?: 10f
-        if (minV == maxV) {
-            minV -= 5f
-            maxV += 5f
+        val minSpan = 20f
+        val mid = (minV + maxV) / 2f
+        if (maxV - minV < minSpan) {
+            minV = mid - minSpan / 2f
+            maxV = mid + minSpan / 2f
+        } else {
+            val range = maxV - minV
+            val pad = range * 0.2f
+            minV -= pad
+            maxV += pad
         }
-        val range = maxV - minV
-        val pad = range * 0.2f
-        minV -= pad
-        maxV += pad
-        val niceStep = niceStep(range)
+        val niceStep = niceStep(maxV - minV)
         minV = kotlin.math.floor(minV / niceStep) * niceStep
         maxV = kotlin.math.ceil(maxV / niceStep) * niceStep
         return Triple(minV, maxV, niceStep)
@@ -667,24 +670,17 @@ class TemperatureChartView @JvmOverloads constructor(
         val values = visiblePoints.map { it.value }
         val dataMin = values.minOrNull() ?: 0f
         val dataMax = values.maxOrNull() ?: 1f
-        val baseMin: Float
-        val baseMax: Float
-        if (useFixedYRange) {
-            baseMin = fixedYMin
-            baseMax = fixedYMax
-        } else {
-            val (a, b, _) = computeYRange(values)
-            baseMin = a
-            baseMax = b
-        }
-        val centerY = if (useFixedYRange) (dataMin + dataMax) / 2f else (baseMin + baseMax) / 2f
+        val (a, b, _) = computeYRange(values)
+        val baseMin = a
+        val baseMax = b
+        val centerY = (dataMin + dataMax) / 2f
         val halfRange = (baseMax - baseMin) / 2f / yZoomLevel
         var yMin = centerY - halfRange
         var yMax = centerY + halfRange
         if (useFixedYRange) {
-            if (yMin < fixedYMin) { yMin = fixedYMin; yMax = fixedYMin + 2 * halfRange }
-            if (yMax > fixedYMax) { yMax = fixedYMax; yMin = fixedYMax - 2 * halfRange }
             if (yMax - yMin > fixedYMax - fixedYMin) { yMin = fixedYMin; yMax = fixedYMax }
+            else if (yMin < fixedYMin) { yMin = fixedYMin; yMax = fixedYMin + 2 * halfRange }
+            else if (yMax > fixedYMax) { yMax = fixedYMax; yMin = fixedYMax - 2 * halfRange }
         }
         val stepY = niceStep(yMax - yMin)
         var yRange = yMax - yMin

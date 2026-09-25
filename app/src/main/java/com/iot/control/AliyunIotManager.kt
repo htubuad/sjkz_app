@@ -55,6 +55,23 @@ class AliyunIotManager(private val context: Context) {
     private var isPahoReconnecting = false
 
     @Volatile
+    private var lastReconnectAttemptMs = 0L
+
+    @Volatile
+    private var connectionEstablishedAtMs = 0L
+
+    @Volatile
+    private var pendingConnectedRunnable: Runnable? = null
+
+    @Volatile
+    private var reconnectBackoffMs = 2000L
+
+    @Volatile
+    private var reconnectRunnable: Runnable? = null
+
+    private val reconnectHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    @Volatile
     private var lastTopic: String? = null
     @Volatile
     private var lastPayload: String? = null
@@ -660,7 +677,7 @@ class AliyunIotManager(private val context: Context) {
     }
 
     fun addTemperaturePoint(value: Float, timestamp: Long = System.currentTimeMillis()) {
-        if (value < -100f || value > 200f) return
+        if (value < -50f || value > 400f) return
         temperatureHistory.add(TempRecord(value, timestamp))
         if (temperatureHistory.size > maxTemperatureHistory) {
             temperatureHistory.removeAt(0)
@@ -669,7 +686,7 @@ class AliyunIotManager(private val context: Context) {
     }
 
     fun addTemperature2Point(value: Float, timestamp: Long = System.currentTimeMillis()) {
-        if (value < -100f || value > 200f) return
+        if (value < -50f || value > 400f) return
         temperature2History.add(TempRecord(value, timestamp))
         if (temperature2History.size > maxTemperature2History) {
             temperature2History.removeAt(0)
@@ -725,7 +742,26 @@ class AliyunIotManager(private val context: Context) {
      * 2. 用 disconnectForcibly 强制断开（同时停止自动重连）
      * 3. 再关闭客户端
      */
+    private fun cancelPendingConnectedNotification() {
+        val r = pendingConnectedRunnable
+        if (r != null) {
+            reconnectHandler.removeCallbacks(r)
+            pendingConnectedRunnable = null
+        }
+    }
+
+    private fun cancelScheduledReconnect() {
+        val r = reconnectRunnable
+        if (r != null) {
+            reconnectHandler.removeCallbacks(r)
+            reconnectRunnable = null
+        }
+    }
+
     private fun cleanupOldClient() {
+        cancelPendingConnectedNotification()
+        cancelScheduledReconnect()
+        connectionEstablishedAtMs = 0L
         val old = mqttClient ?: return
         try {
             // 移除回调，防止 disconnect/close 时 connectionLost 回调
@@ -753,12 +789,10 @@ class AliyunIotManager(private val context: Context) {
             return
         }
 
-        // 已在连接中 → 不重复发起，避免并发连接导致反复断开重连
         if (isConnecting) {
             Log.i(TAG, "已在连接中，跳过重复连接请求")
             return
         }
-        // 已经连上 → 不重复连接
         if (isConnected()) {
             Log.i(TAG, "已连接，跳过重复连接请求")
             statusListener?.invoke(Status.CONNECTED, "已连接到阿里云 IoT")
@@ -767,6 +801,9 @@ class AliyunIotManager(private val context: Context) {
 
         isConnecting = true
         lastConfig = config
+        reconnectBackoffMs = 2000L
+        cancelScheduledReconnect()
+        cancelPendingConnectedNotification()
 
         setManualDisconnected(false)
 
@@ -807,26 +844,34 @@ class AliyunIotManager(private val context: Context) {
 
         client.setCallback(object : MqttCallbackExtended {
             override fun connectComplete(reconnect: Boolean, serverURI: String?) {
-                // 忽略已废弃的旧客户端回调
                 if (mqttClient !== client) {
                     Log.w(TAG, "忽略旧客户端的 connectComplete 回调")
                     return
                 }
-                Log.i(TAG, "MQTT 连接成功 (reconnect=$reconnect)")
+                val now = SystemClock.elapsedRealtime()
+                connectionEstablishedAtMs = now
+                cancelPendingConnectedNotification()
+                cancelScheduledReconnect()
+
                 isPahoReconnecting = false
                 hasReceivedDevicePacket = false
                 lastDevicePacketTimeMs = 0L
-                statusListener?.invoke(Status.CONNECTED, "已连接到阿里云 IoT")
+
+                if (!reconnect) {
+                    reconnectBackoffMs = 2000L
+                }
+
                 acquireWakeLock()
                 startAlarmCheck()
                 IoTConnectionService.start(context)
-                // 订阅平台下发的属性设置指令（下行主题）
+
+                val config = config
                 val pk = config.productKey
                 val dn = config.deviceName
                 val topics = listOf(
-                    "/sys/$pk/$dn/thing/service/property/set",         // 平台下发属性设置
-                    "/sys/$pk/$dn/thing/service/property/get",          // 平台查询属性
-                    "/sys/$pk/$dn/thing/event/property/post_reply"      // 上报后平台的回复
+                    "/sys/$pk/$dn/thing/service/property/set",
+                    "/sys/$pk/$dn/thing/service/property/get",
+                    "/sys/$pk/$dn/thing/event/property/post_reply"
                 )
                 topics.forEach { topic ->
                     try {
@@ -836,7 +881,6 @@ class AliyunIotManager(private val context: Context) {
                         Log.e(TAG, "订阅失败 $topic: ${e.message}")
                     }
                 }
-                // 订阅自定义 Topic（用于 MQTTX 等外部客户端下发指令）
                 val customTopicUpdate = "/$pk/$dn/user/update"
                 val customTopicGet = "/$pk/$dn/user/get"
                 listOf(customTopicUpdate, customTopicGet).forEach { customTopic ->
@@ -847,6 +891,17 @@ class AliyunIotManager(private val context: Context) {
                         Log.e(TAG, "订阅自定义Topic失败 $customTopic: ${e.message}")
                     }
                 }
+
+                val stableDelayMs = 3000L
+                val runnable = Runnable {
+                    if (mqttClient === client && client.isConnected) {
+                        Log.i(TAG, "MQTT 连接稳定 (reconnect=$reconnect, 存活${stableDelayMs}ms)")
+                        reconnectBackoffMs = 2000L
+                        statusListener?.invoke(Status.CONNECTED, "已连接到阿里云 IoT")
+                    }
+                }
+                pendingConnectedRunnable = runnable
+                reconnectHandler.postDelayed(runnable, stableDelayMs)
             }
 
             override fun connectionLost(cause: Throwable?) {
@@ -854,10 +909,41 @@ class AliyunIotManager(private val context: Context) {
                     Log.w(TAG, "忽略旧客户端的 connectionLost 回调: ${cause?.message}")
                     return
                 }
-                Log.w(TAG, "MQTT 连接丢失: ${cause?.message}")
-                isPahoReconnecting = true
-                startAlarmCheck()
+                cancelPendingConnectedNotification()
+
+                val now = SystemClock.elapsedRealtime()
+                val livedMs = if (connectionEstablishedAtMs > 0) now - connectionEstablishedAtMs else 0L
+                connectionEstablishedAtMs = 0L
+                isPahoReconnecting = false
+
+                val config = config
+
+                if (livedMs >= 15000L) {
+                    reconnectBackoffMs = 2000L
+                } else {
+                    reconnectBackoffMs = (reconnectBackoffMs * 2).coerceAtMost(30_000L)
+                }
+
                 statusListener?.invoke(Status.DISCONNECTED, "连接已断开: ${cause?.message ?: ""}")
+                Log.w(TAG, "MQTT 连接丢失: ${cause?.message} | 存活${livedMs}ms | 下次重连=${reconnectBackoffMs}ms后")
+                startAlarmCheck()
+
+                cancelScheduledReconnect()
+                val runnable = Runnable {
+                    if (mqttClient === client && !client.isConnected && config != null) {
+                        Log.i(TAG, "退避重连 (backoff=${reconnectBackoffMs}ms)")
+                        val cfg = config
+                        Thread {
+                            try {
+                                connectInternal(cfg)
+                            } catch (e: Exception) {
+                                Log.e(TAG, "退避重连异常", e)
+                            }
+                        }.start()
+                    }
+                }
+                reconnectRunnable = runnable
+                reconnectHandler.postDelayed(runnable, reconnectBackoffMs)
             }
 
             override fun messageArrived(topic: String?, message: MqttMessage?) {
@@ -942,10 +1028,10 @@ class AliyunIotManager(private val context: Context) {
         })
 
         val options = MqttConnectOptions().apply {
-            isCleanSession = true
-            isAutomaticReconnect = true
-            keepAliveInterval = 30
-            connectionTimeout = 10
+            isCleanSession = false
+            isAutomaticReconnect = false
+            keepAliveInterval = 90
+            connectionTimeout = 30
             userName = username
             password = mqttPassword.toCharArray()
         }
@@ -973,6 +1059,10 @@ class AliyunIotManager(private val context: Context) {
         if (manual) {
             setManualDisconnected(true)
         }
+        cancelScheduledReconnect()
+        cancelPendingConnectedNotification()
+        reconnectBackoffMs = 2000L
+        connectionEstablishedAtMs = 0L
         isConnecting = false
         deviceState.tfState = -1
         tfStateListener?.invoke(-1)
@@ -1367,10 +1457,17 @@ class AliyunIotManager(private val context: Context) {
             Log.i(TAG, "Already connecting, skip")
             return
         }
-        if (isPahoReconnecting) {
-            Log.d(TAG, "Paho is auto-reconnecting, skip manual intervention")
+
+        cancelScheduledReconnect()
+        cancelPendingConnectedNotification()
+        reconnectBackoffMs = 2000L
+
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastReconnectAttemptMs < 3000L) {
+            Log.d(TAG, "Reconnect too frequent (${now - lastReconnectAttemptMs}ms since last), skip")
             return
         }
+        lastReconnectAttemptMs = now
         Log.i(TAG, "Auto reconnecting via ensureConnectedIfLost()")
         Thread {
             try {
